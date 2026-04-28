@@ -1,0 +1,943 @@
+// ─────────────────────────────────────────────────────────────
+// Prisma Schema — matches professor's SQL exactly (41 tables)
+// Database: PostgreSQL
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+// ═══════════════════════════════════════════════════════════════
+// Groupe 8 — Table de Configuration 
+// ═══════════════════════════════════════════════════════════════
+
+model SiteSetting {
+  id Int @id @default(1)
+
+  universityNameAr String? @map("university_name_ar") @db.VarChar(200)
+  universityNameEn String? @map("university_name_en") @db.VarChar(200)
+  universityNameFr String? @map("university_name_fr") @db.VarChar(200)
+
+  universitySubtitleAr String? @map("university_subtitle_ar") @db.VarChar(255)
+  universitySubtitleEn String? @map("university_subtitle_en") @db.VarChar(255)
+  universitySubtitleFr String? @map("university_subtitle_fr") @db.VarChar(255)
+
+  cityAr String? @map("city_ar") @db.VarChar(120)
+  cityEn String? @map("city_en") @db.VarChar(120)
+  cityFr String? @map("city_fr") @db.VarChar(120)
+
+  heroStudentsStat String? @map("hero_students_stat") @db.VarChar(30)
+  heroTeachersStat String? @map("hero_teachers_stat") @db.VarChar(30)
+  heroCoursesStat String? @map("hero_courses_stat") @db.VarChar(30)
+  heroSatisfactionStat String? @map("hero_satisfaction_stat") @db.VarChar(30)
+
+  bannerStudentsStat String? @map("banner_students_stat") @db.VarChar(30)
+  bannerTeachersStat String? @map("banner_teachers_stat") @db.VarChar(30)
+  bannerFacultiesStat String? @map("banner_faculties_stat") @db.VarChar(30)
+  bannerNationalRankStat String? @map("banner_national_rank_stat") @db.VarChar(30)
+
+  statisticsStudentsStat String? @map("statistics_students_stat") @db.VarChar(30)
+  statisticsTeachersStat String? @map("statistics_teachers_stat") @db.VarChar(30)
+  statisticsProjectsStat String? @map("statistics_projects_stat") @db.VarChar(30)
+  statisticsSatisfactionStat String? @map("statistics_satisfaction_stat") @db.VarChar(30)
+  statisticsQuoteAr String? @map("statistics_quote_ar") @db.Text
+  statisticsQuoteEn String? @map("statistics_quote_en") @db.Text
+  statisticsQuoteFr String? @map("statistics_quote_fr") @db.Text
+
+  aboutLine1Ar String? @map("about_line1_ar") @db.Text
+  aboutLine1En String? @map("about_line1_en") @db.Text
+  aboutLine1Fr String? @map("about_line1_fr") @db.Text
+  aboutLine2Ar String? @map("about_line2_ar") @db.Text
+  aboutLine2En String? @map("about_line2_en") @db.Text
+  aboutLine2Fr String? @map("about_line2_fr") @db.Text
+
+  contactPhone String? @map("contact_phone") @db.VarChar(60)
+  contactEmail String? @map("contact_email") @db.VarChar(150)
+  contactAddressAr String? @map("contact_address_ar") @db.VarChar(255)
+  contactAddressEn String? @map("contact_address_en") @db.VarChar(255)
+  contactAddressFr String? @map("contact_address_fr") @db.VarChar(255)
+
+  logoUrl String? @map("logo_url") @db.VarChar(255)
+  heroBackgroundUrl String? @map("hero_background_url") @db.VarChar(255)
+  bannerBackgroundUrl String? @map("banner_background_url") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("site_settings")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Groupe 4 — Structure universitaire (facultes → promos)
+// ═══════════════════════════════════════════════════════════════
+
+model Faculte {
+  id     Int     @id @default(autoincrement())
+  nom_ar String  @db.VarChar(200)
+  nom_en String? @db.VarChar(200)
+
+  departements Departement[]
+
+  @@map("facultes")
+}
+
+model Departement {
+  id        Int     @id @default(autoincrement())
+  nom_ar    String  @db.VarChar(200)
+  nom_en    String? @db.VarChar(200)
+  faculteId Int?    @map("faculte_id")
+
+  faculte  Faculte?  @relation(fields: [faculteId], references: [id])
+  filieres Filiere[]
+
+  @@map("departements")
+}
+
+model Filiere {
+  id             Int     @id @default(autoincrement())
+  nom_ar         String  @db.VarChar(100)
+  nom_en         String? @db.VarChar(100)
+  departementId  Int?    @map("departement_id")
+  description_ar String? @db.Text
+  description_en String? @db.Text
+
+  departement Departement? @relation(fields: [departementId], references: [id])
+  specialites Specialite[]
+
+  @@map("filieres")
+}
+
+enum Niveau {
+  L1
+  L2
+  L3
+  M1
+  M2
+}
+
+model Specialite {
+  id        Int     @id @default(autoincrement())
+  nom_ar    String  @db.VarChar(100)
+  nom_en    String? @db.VarChar(100)
+  filiereId Int?    @map("filiere_id")
+  niveau    Niveau?
+
+  filiere             Filiere?             @relation(fields: [filiereId], references: [id])
+  promos              Promo[]
+  modules             Module[]
+  campagneSpecialites CampagneSpecialite[]
+  voeux               Voeu[]
+
+  @@map("specialites")
+}
+
+model Promo {
+  id                 Int     @id @default(autoincrement())
+  nom_ar             String? @db.VarChar(100)
+  nom_en             String? @db.VarChar(100)
+  specialiteId       Int?    @map("specialite_id")
+  anneeUniversitaire String? @map("annee_universitaire") @db.VarChar(20)
+  section            String? @db.VarChar(50)
+
+  specialite    Specialite?    @relation(fields: [specialiteId], references: [id])
+  etudiants     Etudiant[]
+  enseignements Enseignement[]
+  pfeSujets     PfeSujet[]
+
+  @@map("promos")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Groupe 1 — Authentification et gestion des rôles
+// ═══════════════════════════════════════════════════════════════
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+}
+
+enum Sexe {
+  H
+  F
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  nom           String    @db.VarChar(100)
+  prenom        String    @db.VarChar(100)
+  sexe          Sexe?
+  dateNaissance DateTime? @map("date_naissance") @db.Date
+  telephone     String?   @db.VarChar(20)
+  photo         String?   @db.VarChar(255)
+
+  // Authentification
+  email    String  @unique @db.VarChar(150)
+  password String  @db.VarChar(255)
+  firstUse Boolean @default(true) @map("first_use")
+
+  // Sécurité
+  emailVerified    Boolean   @default(false) @map("email_verified")
+  resetToken       String?   @map("reset_token") @db.VarChar(255)
+  resetTokenExpire DateTime? @map("reset_token_expire")
+
+  // Gestion du compte
+  status        UserStatus @default(active)
+  lastLogin     DateTime?  @map("last_login")
+  loginAttempts Int        @default(0) @map("login_attempts")
+
+  // Timestamps
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  // Relations
+  userRoles              UserRole[]
+  enseignant             Enseignant?
+  etudiant               Etudiant?
+  annonces               Annonce[]
+  reclamationsTraitees   Reclamation[]   @relation("ReclamationTraitePar")
+  justificationsTraitees Justification[] @relation("JustificationTraitePar")
+
+  @@map("users")
+}
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  nom         String? @db.VarChar(100)
+  description String? @db.Text
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int     @id @default(autoincrement())
+  nom         String? @db.VarChar(100)
+  description String? @db.Text
+  module      String? @db.VarChar(100)
+  action      String? @db.VarChar(50)
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           Int @id @default(autoincrement())
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id     Int @id @default(autoincrement())
+  userId Int @map("user_id")
+  roleId Int @map("role_id")
+
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model Grade {
+  id             Int     @id @default(autoincrement())
+  nom_ar         String? @db.VarChar(100)
+  nom_en         String? @db.VarChar(100)
+  description_ar String? @db.Text
+  description_en String? @db.Text
+
+  enseignants Enseignant[]
+
+  @@map("grades")
+}
+
+model Enseignant {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @unique @map("user_id")
+  gradeId         Int?      @map("grade_id")
+  bureau          String?   @db.VarChar(50)
+  dateRecrutement DateTime? @map("date_recrutement") @db.Date
+
+  user  User   @relation(fields: [userId], references: [id])
+  grade Grade? @relation(fields: [gradeId], references: [id])
+
+  // Relations
+  enseignements        Enseignement[]
+  documentRequests     DocumentRequest[]
+  pfeSujets            PfeSujet[]
+  groupsPfeCoEncadrant GroupPfe[]             @relation("CoEncadrant")
+  pfeJury              PfeJury[]
+  membresConseil       MembreConseil[]
+  dossiersSignales     DossierDisciplinaire[] @relation("EnseignantSignalant")
+
+  @@map("enseignants")
+}
+
+model Etudiant {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique @map("user_id")
+  matricule        String?  @unique @db.VarChar(50)
+  promoId          Int?     @map("promo_id")
+  moyenne          Decimal? @db.Decimal(4, 2)
+  anneeInscription Int?     @map("annee_inscription") @db.SmallInt
+
+  user  User   @relation(fields: [userId], references: [id])
+  promo Promo? @relation(fields: [promoId], references: [id])
+
+  // Relations
+  groupMembers           GroupMember[]
+  voeux                  Voeu[]
+  dossiersDisciplinaires DossierDisciplinaire[]
+  reclamations           Reclamation[]
+  justifications         Justification[]
+
+  @@map("etudiants")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Groupe 6 — Documents enseignants
+// ═══════════════════════════════════════════════════════════════
+
+model Module {
+  id             Int     @id @default(autoincrement())
+  nom_ar         String  @db.VarChar(150)
+  nom_en         String? @db.VarChar(150)
+  code           String  @unique @db.VarChar(50)
+  semestre       Int?    @db.SmallInt
+  specialiteId   Int     @map("specialite_id")
+  volumeCours    Int     @default(0) @map("volume_cours")
+  volumeTd       Int     @default(0) @map("volume_td")
+  volumeTp       Int     @default(0) @map("volume_tp")
+  credit         Int     @default(0)
+  coef           Decimal @default(1) @db.Decimal(4, 2)
+  description_ar String? @db.Text
+  description_en String? @db.Text
+
+  specialite    Specialite     @relation(fields: [specialiteId], references: [id])
+  enseignements Enseignement[]
+
+  @@map("modules")
+}
+
+enum TypeEnseignement {
+  cours
+  td
+  tp
+}
+
+model Enseignement {
+  id                 Int               @id @default(autoincrement())
+  enseignantId       Int?              @map("enseignant_id")
+  moduleId           Int?              @map("module_id")
+  promoId            Int?              @map("promo_id")
+  type               TypeEnseignement?
+  anneeUniversitaire String?           @map("annee_universitaire") @db.VarChar(20)
+
+  enseignant   Enseignant?   @relation(fields: [enseignantId], references: [id])
+  module       Module?       @relation(fields: [moduleId], references: [id])
+  promo        Promo?        @relation(fields: [promoId], references: [id])
+  copiesRemise CopieRemise[]
+
+  @@map("enseignements")
+}
+
+enum CategorieDocument {
+  enseignement
+  administratif
+  scientifique
+  pedagogique
+  autre
+}
+
+model DocumentType {
+  id             Int               @id @default(autoincrement())
+  nom_ar         String?           @db.VarChar(150)
+  nom_en         String?           @db.VarChar(150)
+  description_ar String?           @db.Text
+  description_en String?           @db.Text
+  categorie      CategorieDocument
+
+  documentRequests DocumentRequest[]
+
+  @@map("document_types")
+}
+
+enum StatusDocumentRequest {
+  en_attente
+  en_traitement
+  valide
+  refuse
+}
+
+model DocumentRequest {
+  id             Int                   @id @default(autoincrement())
+  enseignantId   Int?                  @map("enseignant_id")
+  typeDocId      Int?                  @map("type_doc_id")
+  description_ar String?               @db.Text
+  description_en String?               @db.Text
+  dateDemande    DateTime?             @map("date_demande") @db.Date
+  status         StatusDocumentRequest @default(en_attente)
+  traitePar      Int?                  @map("traite_par")
+  dateTraitement DateTime?             @map("date_traitement") @db.Date
+  documentUrl    String?               @map("document_url") @db.Text
+
+  enseignant Enseignant?   @relation(fields: [enseignantId], references: [id])
+  typeDoc    DocumentType? @relation(fields: [typeDocId], references: [id])
+
+  @@map("document_requests")
+}
+
+enum SessionExam {
+  normale
+  dette
+  rattrapage
+}
+
+enum StatusCopie {
+  non_remis
+  remis
+  en_retard
+}
+
+model CopieRemise {
+  id             Int         @id @default(autoincrement())
+  enseignementId Int?        @map("enseignement_id")
+  session        SessionExam @default(normale)
+  dateExam       DateTime?   @map("date_exam") @db.Date
+  dateRemise     DateTime?   @map("date_remise") @db.Date
+  nbCopies       Int         @default(0) @map("nb_copies")
+  status         StatusCopie @default(non_remis)
+  commentaire_ar String?     @db.Text
+  commentaire_en String?     @db.Text
+
+  enseignement Enseignement? @relation(fields: [enseignementId], references: [id])
+
+  @@map("copies_remise")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Groupe 4 — Affectation (campagnes + voeux)
+// ═══════════════════════════════════════════════════════════════
+
+enum NiveauSource {
+  L1
+  L2
+  L3
+  M1
+  M2
+}
+
+enum NiveauCible {
+  L2
+  L3
+  M1
+  M2
+  D1
+}
+
+enum StatusCampagne {
+  brouillon
+  ouverte
+  fermee
+  terminee
+}
+
+model CampagneAffectation {
+  id                 Int            @id @default(autoincrement())
+  nom_ar             String         @db.VarChar(150)
+  nom_en             String?        @db.VarChar(150)
+  niveauSource       NiveauSource   @map("niveau_source")
+  niveauCible        NiveauCible    @map("niveau_cible")
+  anneeUniversitaire String         @map("annee_universitaire") @db.VarChar(20)
+  dateDebut          DateTime       @map("date_debut") @db.Date
+  dateFin            DateTime       @map("date_fin") @db.Date
+  status             StatusCampagne @default(brouillon)
+  dateAffectation    DateTime?      @map("date_affectation")
+  createdAt          DateTime       @default(now()) @map("created_at")
+
+  campagneSpecialites CampagneSpecialite[]
+  voeux               Voeu[]
+
+  @@map("campagne_affectation")
+}
+
+model CampagneSpecialite {
+  id             Int  @id @default(autoincrement())
+  campagneId     Int  @map("campagne_id")
+  specialiteId   Int  @map("specialite_id")
+  quota          Int?
+  placesOccupees Int  @default(0) @map("places_occupees")
+
+  campagne   CampagneAffectation @relation(fields: [campagneId], references: [id])
+  specialite Specialite          @relation(fields: [specialiteId], references: [id])
+
+  @@map("campagne_specialites")
+}
+
+enum StatusVoeu {
+  en_attente
+  accepte
+  refuse
+}
+
+model Voeu {
+  id           Int        @id @default(autoincrement())
+  campagneId   Int?       @map("campagne_id")
+  etudiantId   Int?       @map("etudiant_id")
+  specialiteId Int?       @map("specialite_id")
+  ordre        Int
+  status       StatusVoeu @default(en_attente)
+  dateSaisie   DateTime   @default(now()) @map("date_saisie")
+
+  campagne   CampagneAffectation? @relation(fields: [campagneId], references: [id])
+  etudiant   Etudiant?            @relation(fields: [etudiantId], references: [id])
+  specialite Specialite?          @relation(fields: [specialiteId], references: [id])
+
+  @@map("voeux")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Groupe 3 — Gestion des PFE
+// ═══════════════════════════════════════════════════════════════
+
+enum TypeProjet {
+  recherche
+  application
+  etude
+  innovation
+}
+
+enum StatusSujet {
+  propose
+  valide
+  reserve
+  affecte
+  termine
+}
+
+model PfeSujet {
+  id                 Int         @id @default(autoincrement())
+  titre_ar           String      @db.VarChar(255)
+  titre_en           String?     @db.VarChar(255)
+  description_ar     String      @db.Text
+  description_en     String?     @db.Text
+  keywords_ar        String?     @db.Text
+  keywords_en        String?     @db.Text
+  enseignantId       Int         @map("enseignant_id")
+  promoId            Int         @map("promo_id")
+  workplan_ar        String?     @db.Text
+  workplan_en        String?     @db.Text
+  bibliographie_ar   String?     @db.Text
+  bibliographie_en   String?     @db.Text
+  typeProjet         TypeProjet  @default(application) @map("type_projet")
+  status             StatusSujet @default(propose)
+  anneeUniversitaire String      @map("annee_universitaire") @db.VarChar(20)
+  maxGrps            Int         @default(1) @map("max_grps")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  enseignant  Enseignant   @relation(fields: [enseignantId], references: [id])
+  promo       Promo        @relation(fields: [promoId], references: [id])
+  groupsPfe   GroupPfe[]
+  groupSujets GroupSujet[]
+
+  @@map("pfe_sujets")
+}
+
+enum MentionPfe {
+  passable
+  assez_bien
+  bien
+  tres_bien
+  excellent
+}
+
+model GroupPfe {
+  id              Int         @id @default(autoincrement())
+  nom_ar          String      @db.VarChar(100)
+  nom_en          String?     @db.VarChar(100)
+  sujetFinalId    Int         @map("sujet_final_id")
+  coEncadrantId   Int         @map("co_encadrant_id")
+  dateCreation    DateTime?   @map("date_creation") @db.Date
+  dateAffectation DateTime?   @map("date_affectation") @db.Date
+  dateSoutenance  DateTime?   @map("date_soutenance") @db.Date
+  salleSoutenance String?     @map("salle_soutenance") @db.VarChar(50)
+  note            Decimal?    @db.Decimal(4, 2)
+  mention         MentionPfe?
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  sujetFinal   PfeSujet      @relation(fields: [sujetFinalId], references: [id])
+  coEncadrant  Enseignant    @relation("CoEncadrant", fields: [coEncadrantId], references: [id])
+  groupSujets  GroupSujet[]
+  groupMembers GroupMember[]
+  pfeJury      PfeJury[]
+
+  @@map("groups_pfe")
+}
+
+enum StatusGroupSujet {
+  en_attente
+  accepte
+  refuse
+}
+
+model GroupSujet {
+  id      Int              @id @default(autoincrement())
+  groupId Int              @map("group_id")
+  sujetId Int              @map("sujet_id")
+  ordre   Int
+  status  StatusGroupSujet @default(en_attente)
+
+  group GroupPfe @relation(fields: [groupId], references: [id])
+  sujet PfeSujet @relation(fields: [sujetId], references: [id])
+
+  @@unique([groupId, sujetId])
+  @@map("group_sujets")
+}
+
+enum RoleMembre {
+  membre
+  chef_groupe
+}
+
+model GroupMember {
+  id         Int        @id @default(autoincrement())
+  groupId    Int        @map("group_id")
+  etudiantId Int        @map("etudiant_id")
+  role       RoleMembre @default(membre)
+
+  group    GroupPfe @relation(fields: [groupId], references: [id])
+  etudiant Etudiant @relation(fields: [etudiantId], references: [id])
+
+  @@unique([groupId, etudiantId])
+  @@map("group_members")
+}
+
+enum RoleJury {
+  president
+  examinateur
+  rapporteur
+}
+
+model PfeJury {
+  id           Int       @id @default(autoincrement())
+  groupId      Int?      @map("group_id")
+  enseignantId Int?      @map("enseignant_id")
+  role         RoleJury?
+
+  group      GroupPfe?   @relation(fields: [groupId], references: [id])
+  enseignant Enseignant? @relation(fields: [enseignantId], references: [id])
+
+  @@map("pfe_jury")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Groupe 2 — Conseil disciplinaire
+// ═══════════════════════════════════════════════════════════════
+
+enum GraviteInfraction {
+  faible
+  moyenne
+  grave
+  tres_grave
+}
+
+model Infraction {
+  id             Int               @id @default(autoincrement())
+  nom_ar         String            @db.VarChar(150)
+  nom_en         String?           @db.VarChar(150)
+  description_ar String?           @db.Text
+  description_en String?           @db.Text
+  gravite        GraviteInfraction
+
+  dossiers DossierDisciplinaire[]
+
+  @@map("infractions")
+}
+
+enum NiveauSanction {
+  avertissement
+  blame
+  suspension
+  exclusion
+}
+
+model Decision {
+  id             Int             @id @default(autoincrement())
+  nom_ar         String          @db.VarChar(150)
+  nom_en         String?         @db.VarChar(150)
+  description_ar String?         @db.Text
+  description_en String?         @db.Text
+  niveauSanction NiveauSanction? @map("niveau_sanction")
+
+  dossiers DossierDisciplinaire[]
+
+  @@map("decisions")
+}
+
+enum StatusConseil {
+  planifie
+  en_cours
+  termine
+}
+
+model ConseilDisciplinaire {
+  id                 Int           @id @default(autoincrement())
+  dateReunion        DateTime      @map("date_reunion") @db.Date
+  heure              DateTime?     @db.Time()
+  lieu               String?       @db.VarChar(150)
+  anneeUniversitaire String        @map("annee_universitaire") @db.VarChar(20)
+  description_ar     String?       @db.Text
+  description_en     String?       @db.Text
+  status             StatusConseil @default(planifie)
+  createdAt          DateTime      @default(now()) @map("created_at")
+
+  membres  MembreConseil[]
+  dossiers DossierDisciplinaire[]
+
+  @@map("conseils_disciplinaires")
+}
+
+enum RoleConseil {
+  president
+  rapporteur
+  membre
+}
+
+model MembreConseil {
+  id           Int         @id @default(autoincrement())
+  conseilId    Int         @map("conseil_id")
+  enseignantId Int         @map("enseignant_id")
+  role         RoleConseil @default(membre)
+
+  conseil    ConseilDisciplinaire @relation(fields: [conseilId], references: [id])
+  enseignant Enseignant           @relation(fields: [enseignantId], references: [id])
+
+  @@map("membres_conseil")
+}
+
+enum StatusDossier {
+  signale
+  en_instruction
+  jugement
+  traite
+}
+
+model DossierDisciplinaire {
+  id                   Int           @id @default(autoincrement())
+  conseilId            Int?          @map("conseil_id")
+  etudiantId           Int           @map("etudiant_id")
+  enseignantSignalant  Int?          @map("enseignant_signalant")
+  infractionId         Int           @map("infraction_id")
+  dateSignal           DateTime      @map("date_signal") @db.Date
+  descriptionSignal_ar String?       @map("description_signal_ar") @db.Text
+  descriptionSignal_en String?       @map("description_signal_en") @db.Text
+  decisionId           Int?          @map("decision_id")
+  remarqueDecision_ar  String?       @map("remarque_decision_ar") @db.Text
+  remarqueDecision_en  String?       @map("remarque_decision_en") @db.Text
+  dateDecision         DateTime?     @map("date_decision") @db.Date
+  status               StatusDossier @default(signale)
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  conseil              ConseilDisciplinaire? @relation(fields: [conseilId], references: [id])
+  etudiant             Etudiant              @relation(fields: [etudiantId], references: [id])
+  enseignantSignalantR Enseignant?           @relation("EnseignantSignalant", fields: [enseignantSignalant], references: [id])
+  infraction           Infraction            @relation(fields: [infractionId], references: [id])
+  decision             Decision?             @relation(fields: [decisionId], references: [id])
+
+  @@map("dossiers_disciplinaires")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Groupe 5 — Réclamations et justifications
+// ═══════════════════════════════════════════════════════════════
+
+model ReclamationType {
+  id             Int     @id @default(autoincrement())
+  nom_ar         String? @db.VarChar(150)
+  nom_en         String? @db.VarChar(150)
+  description_ar String? @db.Text
+  description_en String? @db.Text
+
+  reclamations Reclamation[]
+
+  @@map("reclamation_types")
+}
+
+enum PrioriteReclamation {
+  faible
+  normale
+  haute
+  urgente
+}
+
+enum StatusReclamation {
+  soumise
+  en_cours
+  en_attente
+  traitee
+  refusee
+}
+
+model Reclamation {
+  id              Int                 @id @default(autoincrement())
+  etudiantId      Int                 @map("etudiant_id")
+  typeId          Int                 @map("type_id")
+  objet_ar        String              @db.VarChar(255)
+  objet_en        String?             @db.VarChar(255)
+  description_ar  String              @db.Text
+  description_en  String?             @db.Text
+  priorite        PrioriteReclamation @default(normale)
+  dateReclamation DateTime?           @default(now()) @map("date_reclamation") @db.Date
+  status          StatusReclamation   @default(soumise)
+  traitePar       Int?                @map("traite_par")
+  dateTraitement  DateTime?           @map("date_traitement")
+  reponse_ar      String?             @db.Text
+  reponse_en      String?             @db.Text
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  etudiant      Etudiant        @relation(fields: [etudiantId], references: [id])
+  type          ReclamationType @relation(fields: [typeId], references: [id])
+  traiteParUser User?           @relation("ReclamationTraitePar", fields: [traitePar], references: [id])
+
+  @@map("reclamations")
+}
+
+model TypeAbsence {
+  id             Int     @id @default(autoincrement())
+  nom_ar         String? @db.VarChar(100)
+  nom_en         String? @db.VarChar(100)
+  description_ar String? @db.Text
+  description_en String? @db.Text
+
+  justifications Justification[]
+
+  @@map("type_absence")
+}
+
+enum StatusJustification {
+  soumis
+  en_verification
+  valide
+  refuse
+}
+
+model Justification {
+  id                  Int                 @id @default(autoincrement())
+  etudiantId          Int                 @map("etudiant_id")
+  typeId              Int                 @map("type_id")
+  dateAbsence         DateTime            @map("date_absence") @db.Date
+  motif_ar            String?             @db.Text
+  motif_en            String?             @db.Text
+  document            String?             @db.Text
+  dateDepot           DateTime?           @default(now()) @map("date_depot") @db.Date
+  status              StatusJustification @default(soumis)
+  traitePar           Int?                @map("traite_par")
+  dateTraitement      DateTime?           @map("date_traitement")
+  commentaireAdmin_ar String?             @map("commentaire_admin_ar") @db.Text
+  commentaireAdmin_en String?             @map("commentaire_admin_en") @db.Text
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+
+  etudiant      Etudiant    @relation(fields: [etudiantId], references: [id])
+  type          TypeAbsence @relation(fields: [typeId], references: [id])
+  traiteParUser User?       @relation("JustificationTraitePar", fields: [traitePar], references: [id])
+
+  @@map("justifications")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Groupe 7 — Actualités (annonces)
+// ═══════════════════════════════════════════════════════════════
+
+model AnnonceType {
+  id             Int     @id @default(autoincrement())
+  nom_ar         String? @db.VarChar(100)
+  nom_en         String? @db.VarChar(100)
+  description_ar String? @db.Text
+  description_en String? @db.Text
+
+  annonces Annonce[]
+
+  @@map("annonce_types")
+}
+
+enum CibleAnnonce {
+  tous
+  etudiants
+  enseignants
+  administration
+}
+
+enum PrioriteAnnonce {
+  basse
+  normale
+  haute
+  urgente
+}
+
+enum StatusAnnonce {
+  brouillon
+  publie
+  archive
+}
+
+model Annonce {
+  id              Int             @id @default(autoincrement())
+  titre_ar        String          @db.VarChar(255)
+  titre_en        String?         @db.VarChar(255)
+  contenu_ar      String          @db.Text
+  contenu_en      String?         @db.Text
+  auteurId        Int             @map("auteur_id")
+  typeId          Int?            @map("type_id")
+  cible           CibleAnnonce    @default(tous)
+  datePublication DateTime?       @default(now()) @map("date_publication") @db.Date
+  dateExpiration  DateTime?       @map("date_expiration") @db.Date
+  priorite        PrioriteAnnonce @default(normale)
+  status          StatusAnnonce   @default(publie)
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  auteur    User              @relation(fields: [auteurId], references: [id])
+  type      AnnonceType?      @relation(fields: [typeId], references: [id])
+  documents AnnonceDocument[]
+
+  @@map("annonces")
+}
+
+enum TypeFichierAnnonce {
+  pdf
+  image
+  doc
+  autre
+}
+
+model AnnonceDocument {
+  id             Int                @id @default(autoincrement())
+  annonceId      Int                @map("annonce_id")
+  fichier        String             @db.Text
+  type           TypeFichierAnnonce @default(autre)
+  description_ar String?            @db.Text
+  description_en String?            @db.Text
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  annonce Annonce @relation(fields: [annonceId], references: [id])
+
+  @@map("annonces_documents")
+}
