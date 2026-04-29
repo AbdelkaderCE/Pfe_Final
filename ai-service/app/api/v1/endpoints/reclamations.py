@@ -46,19 +46,19 @@ async def analyze_single_reclamation(
         moderator = get_hybrid_moderator()
         
         # 1. Check safety
-        safety = moderator.moderate_text(text)
+        safety = moderator.moderate_document(text)
         
         # 2. Check sentiment/categories
         nlp_result = nlp.classify_text(text)
         
         return {
             "reclamation_id": payload.get("reclamation_id"),
-            "is_safe": safety["is_safe"],
-            "toxicity_level": safety["toxicity_level"],
+            "is_safe": not safety.get("is_toxic", False),
+            "toxicity_level": safety.get("toxicity_level", "low"),
             "sentiment": nlp_result.get("sentiment", "neutral"),
             "categories": nlp_result.get("categories", ["general"]),
             "summary": nlp_result.get("summary", "No summary available."),
-            "priority_suggestion": "high" if safety["toxicity_level"] != "none" or nlp_result.get("sentiment") == "negative" else "normal"
+            "priority_suggestion": "high" if safety.get("toxicity_level") != "low" or nlp_result.get("sentiment") == "negative" else "normal"
         }
 
     except Exception as e:
