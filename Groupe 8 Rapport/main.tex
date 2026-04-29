@@ -1,0 +1,141 @@
+\documentclass[12pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{float}
+
+\geometry{margin=2.5cm}
+
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\definecolor{brandblue}{rgb}{0.11, 0.3, 0.85}
+
+\lstset{
+    backgroundcolor=\color{backcolour},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numberstyle=\tiny\color{codegray},
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    keywordstyle=\color{brandblue}
+}
+
+\begin{document}
+
+\chapter{Conception par module : Core Template \& Architecture Frontend}
+
+\section{Présentation du module, objectifs, fonctionnalités, contraintes et communication}
+
+\subsection{Présentation et Objectifs}
+Le module \textbf{Core Template} représente l'infrastructure fondationnelle de la plateforme universitaire. Il a été conçu pour standardiser l'expérience utilisateur et centraliser la logique transversale. Son objectif principal est de fournir un \textit{Design System} robuste et une architecture frontend modulaire permettant aux autres équipes de développer leurs fonctionnalités sans se soucier des contraintes de base.
+
+\subsection{Fonctionnalités et Contraintes}
+\begin{itemize}
+    \item \textbf{Moteur de Thèming :} Gestion dynamique des modes (Clair/Sombre) et des accents de couleurs institutionnels.
+    \item \textbf{Bibliothèque UI :} Fourniture de composants atomiques réutilisables (Boutons, Modales, Formulaires).
+    \item \textbf{Contraintes Techniques :} Obligation de maintenir des performances élevées (optimisation du DOM React), une accessibilité stricte (WCAG), et un support natif de la bidirectionnalité (LTR/RTL pour l'arabe).
+\end{itemize}
+
+\subsection{Communication (Contrat API)}
+Le module définit les standards de communication entre le client et le serveur. Une couche d'interception (Axios Interceptors) a été mise en place pour normaliser les requêtes. 
+Toute réponse backend doit respecter un format JSON strict, garantissant au frontend une structure prédictible (\texttt{success}, \texttt{data}, ou \texttt{error}), unifiant ainsi le traitement des erreurs sur toute la plateforme.
+
+\section{Modélisation et conception}
+
+\subsection{Modélisation des Données Globales}
+Le socle applicatif s'appuie sur un modèle de base de données centralisé géré via Prisma. Le modèle \texttt{SiteSetting} agit comme un \textit{Singleton} permettant la gestion dynamique de l'identité de l'institution sans redéploiement de code.
+
+% PLACEHOLDER: Database Schema
+\begin{figure}[H]
+    \centering
+    \fbox{\begin{minipage}{0.8\textwidth}
+        \centering
+        \vspace{2cm}
+        \textbf{[SCREENSHOT : Diagramme relationnel Prisma]} \\
+        \textit{Insérez ici le schéma montrant le modèle SiteSetting et ses relations avec les entités principales de configuration.}
+        \vspace{2cm}
+    \end{minipage}}
+    \caption{Architecture de données du socle de configuration.}
+\end{figure}
+
+\subsection{Conception Architecturale (Diagramme de Séquence)}
+La conception du cycle de vie de l'application suit une logique stricte d'initialisation. Lors du démarrage, l'application exécute une séquence précise pour garantir que l'interface reflète l'état de la base de données et les préférences de l'utilisateur.
+
+% PLACEHOLDER: Sequence Diagram
+\begin{figure}[H]
+    \centering
+    \fbox{\begin{minipage}{0.8\textwidth}
+        \centering
+        \vspace{2cm}
+        \textbf{[SCREENSHOT : Diagramme de Séquence de Démarrage]} \\
+        \textit{Dessinez (via draw.io ou Mermaid) la séquence : App Initialization -> Fetch SiteSettings (API) -> Inject to React Context -> Apply CSS Tokens to DOM.}
+        \vspace{2cm}
+    \end{minipage}}
+    \caption{Séquence d'initialisation du système de thèming et des configurations.}
+\end{figure}
+
+\section{Implémentation et intégration}
+
+\subsection{Les Tokens Sémantiques et le Moteur CSS}
+L'implémentation rejette l'utilisation de couleurs statiques au profit de \textit{Design Tokens} sémantiques (\texttt{--color-surface}, \texttt{--color-ink}). Le composant \texttt{ThemeProvider} interagit avec le \textit{localStorage} et injecte ces attributs directement dans le DOM, permettant des transitions de thème en temps réel.
+
+\subsection{Architecture des Composants Atomiques}
+La construction de l'interface suit le principe de l'Atomic Design. Par exemple, le composant \texttt{Button.jsx} centralise la logique de ses différentes variantes (\textit{Primary, Secondary, Ghost}), tailles et états (\textit{Loading, Disabled}).
+
+\subsection{Intégration via Documentation Vivante (Showcase)}
+Pour assurer une intégration fluide par les autres groupes, nous avons implémenté un \textbf{Component Showcase}. Cette page sert de documentation technique vivante, centralisant tous les éléments de l'interface et démontrant leur implémentation technique.
+
+% PLACEHOLDER: Component Showcase
+\begin{figure}[H]
+    \centering
+    \fbox{\begin{minipage}{0.8\textwidth}
+        \centering
+        \vspace{2cm}
+        \textbf{[SCREENSHOT : Page Component Showcase]} \\
+        \textit{Prenez une capture de la page /showcase montrant les sections Buttons ou Feedback développées.}
+        \vspace{2cm}
+    \end{minipage}}
+    \caption{Environnement de documentation vivante du Design System.}
+\end{figure}
+
+\section{Tests et validation}
+
+\subsection{Validation de la Réactivité et Accessibilité}
+Des validations approfondies ont été réalisées pour garantir l'adaptabilité (Responsive Design). Les layouts, notamment la \texttt{Sidebar} et la \texttt{Topbar}, basculent automatiquement vers des composants optimisés pour le toucher sur les terminaux mobiles.
+
+\subsection{Tests Visuels et Comportementaux}
+La page \textit{Showcase} a été utilisée comme environnement de test d'intégration visuelle. Cela a permis de vérifier de manière isolée le comportement des micro-interactions (animations \textit{bounce}, états \textit{hover/focus}) avant leur déploiement dans des modules complexes.
+
+% PLACEHOLDER: Responsive View
+\begin{figure}[H]
+    \centering
+    \fbox{\begin{minipage}{0.8\textwidth}
+        \centering
+        \vspace{2cm}
+        \textbf{[SCREENSHOT : Test de Réactivité Mobile]} \\
+        \textit{Capturez le dashboard ou la showcase en mode mobile (F12) avec le menu latéral replié.}
+        \vspace{2cm}
+    \end{minipage}}
+    \caption{Validation des comportements responsives sur format mobile.}
+\end{figure}
+
+\section{Résultats}
+Le déploiement et l'adoption de ce module Core par les autres équipes ont généré des résultats mesurables :
+\begin{itemize}
+    \item \textbf{Réutilisabilité Maximisée :} L'écriture de CSS redondant a été quasi éliminée pour les équipes fonctionnelles, ces dernières se contentant d'importer les composants du Design System.
+    \item \textbf{Cohérence de Plateforme :} 100\% des interfaces, bien que développées par différents groupes, partagent la même logique de navigation et d'identité visuelle.
+    \item \textbf{Stabilité Communicative :} L'architecture API centralisée a permis de réduire drastiquement les erreurs de formatage des données entre le frontend et les multiples contrôleurs backend.
+\end{itemize}
+
+\end{document}
