@@ -5,6 +5,9 @@ import {
   ConversationMessage,
   generateAIResponse,
   validateUserQuery,
+  callAIAnalysis,
+  callImageModeration,
+  callReclamationAnalysis,
 } from "./ai.service";
 import logger from "../../utils/logger";
 
@@ -56,5 +59,39 @@ export const chatHandler = async (req: AuthRequest, res: Response) => {
       success: false,
       message: error?.message || "Failed to generate AI response",
     });
+  }
+};
+
+export const analyzeDocumentHandler = async (req: AuthRequest, res: Response) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1] || "";
+    const result = await callAIAnalysis(req.body, token);
+    return res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error("Error in analyzeDocumentHandler:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const analyzeReclamationHandler = async (req: AuthRequest, res: Response) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1] || "";
+    const result = await callReclamationAnalysis(req.body, token);
+    return res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error("Error in analyzeReclamationHandler:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const moderateImageHandler = async (req: AuthRequest, res: Response) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1] || "";
+    const { image_url } = req.body;
+    const result = await callImageModeration(image_url, token);
+    return res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error("Error in moderateImageHandler:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

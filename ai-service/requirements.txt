@@ -1,0 +1,58 @@
+# FastAPI & Web Framework
+fastapi==0.111.0
+uvicorn[standard]==0.28.0
+pydantic==2.8.2
+pydantic-settings==2.2.1
+python-multipart>=0.0.7
+
+# Database & ORM
+sqlalchemy>=2.0.0
+psycopg[binary]
+sqlalchemy-utils>=0.41.0
+
+# JWT & Security
+PyJWT>=2.8,<3.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+cryptography==42.0.7
+
+# AI/ML Libraries - FLEXIBLE VERSIONS
+torch>=2.0.0
+transformers>=4.40.0
+sentence-transformers>=2.7.0
+huggingface_hub>=0.22.0
+scikit-learn>=1.4.0
+numpy>=1.26.0
+scipy>=1.12.0
+opencv-python>=4.9.0
+Pillow>=10.0.0
+easyocr>=1.7.1
+
+# Vector Search (FAISS)
+faiss-cpu>=1.8.0
+
+# NLP & Text Processing
+nltk==3.8.1
+textblob==0.17.1
+
+# Document Processing
+pdfminer.six==20231228
+python-docx==1.1.0
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+httpx==0.27.0
+
+# Utilities
+python-dotenv==1.0.1
+requests==2.31.0
+aiofiles==23.2.1
+python-json-logger==2.0.7
+
+# Development
+black==24.3.0
+flake8==7.0.0
+isort==5.13.2
+langdetect==1.0.9
