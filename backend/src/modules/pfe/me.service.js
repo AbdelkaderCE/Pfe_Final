@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const { isStudentVisibilityOpen } = require('./pfe-config.service');
+const { isStudentVisibilityOpen, isStudentSelectionAllowed } = require('./pfe-config.service');
 
 const prisma = new PrismaClient();
 
@@ -262,6 +262,12 @@ async function selectSubject(userId, sujetId) {
   const id = Number(sujetId);
   if (!Number.isInteger(id) || id <= 0) {
     throw new DomainError(400, 'INVALID_SUBJECT_ID', 'sujetId must be a positive integer');
+  }
+
+  // Config gate: admin may disable student selection entirely
+  const selectionAllowed = await isStudentSelectionAllowed();
+  if (!selectionAllowed) {
+    throw new DomainError(403, 'SELECTION_DISABLED', 'Student subject selection is currently disabled by the administration.');
   }
 
   const etudiant = await resolveEtudiantByUserId(userId);

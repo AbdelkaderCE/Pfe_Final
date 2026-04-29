@@ -127,13 +127,18 @@ export const composeJuryHandler = async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    console.log('[DEBUG] ComposeJury Request Body:', JSON.stringify(body, null, 2));
+
     const dateSoutenance = composeDateTime(body.date, body.time, body.dateTime);
+    console.log('[DEBUG] Parsed dateSoutenance:', dateSoutenance);
+
     const salleSoutenance = (() => {
       const raw = body.room ?? body.salle;
       if (typeof raw !== "string") return undefined;
       const trimmed = raw.trim();
       return trimmed.length ? trimmed : undefined;
     })();
+    console.log('[DEBUG] Parsed salleSoutenance:', salleSoutenance);
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.pfeJury.deleteMany({ where: { groupId } });

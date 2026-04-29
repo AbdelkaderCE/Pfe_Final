@@ -13,6 +13,7 @@ import {
   Trash2,
   Unlock,
   Users,
+  Download,
   X,
   XCircle,
 } from 'lucide-react';
@@ -528,6 +529,7 @@ function ResultsTable({ results }) {
           <tr className="border-b border-edge-subtle bg-canvas/40">
             <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Student</th>
             <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Email</th>
+            <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Average</th>
             <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Specialite</th>
             <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Ordre</th>
             <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Status</th>
@@ -540,6 +542,7 @@ function ResultsTable({ results }) {
                 {row.etudiant?.user?.prenom} {row.etudiant?.user?.nom}
               </td>
               <td className="px-3 py-2 text-ink-secondary">{row.etudiant?.user?.email || '—'}</td>
+              <td className="px-3 py-2 text-center text-ink font-semibold">{row.etudiant?.moyenne || '—'}</td>
               <td className="px-3 py-2 text-ink">{specialiteLabel(row.specialite)}</td>
               <td className="px-3 py-2 text-center text-ink">{row.ordre}</td>
               <td className="px-3 py-2 text-center">
@@ -549,6 +552,131 @@ function ResultsTable({ results }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function ImportAveragesModal({ isOpen, onClose, onImported }) {
+  const [csv, setCsv] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState(null);
+  const [error, setError] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleImport = async () => {
+    if (!csv.trim()) {
+      setError('Please paste CSV data first.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setResults(null);
+    try {
+      const res = await affectationAPI.importAverages({ csv });
+      setResults(res?.data);
+      if (res?.data?.successCount > 0) {
+        onImported();
+      }
+    } catch (err) {
+      setError(err?.message || 'Failed to import averages.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-2xl rounded-3xl border border-edge bg-surface p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-ink">Import Student Averages</h3>
+          <button onClick={onClose} className="rounded-full p-2 hover:bg-canvas/80 text-ink-tertiary">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {!results ? (
+          <div className="space-y-4">
+            <p className="text-sm text-ink-secondary">
+              Paste CSV data with columns: <code className="bg-canvas px-1.5 py-0.5 rounded text-brand">email,average</code>
+            </p>
+            <textarea
+              value={csv}
+              onChange={(e) => setCsv(e.target.value)}
+              placeholder="student@univ.dz,14.50&#10;another@univ.dz,12.75"
+              className="h-64 w-full rounded-xl border border-edge bg-canvas/40 p-4 text-sm font-mono text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            />
+            {error && <div className="rounded-lg bg-danger/10 p-3 text-sm text-danger">{error}</div>}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={onClose}
+                className="rounded-xl border border-edge px-5 py-2 text-sm font-medium text-ink hover:bg-canvas"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-2 text-sm font-bold text-surface transition-all hover:bg-brand-hover disabled:opacity-60"
+              >
+                {loading && <RefreshCw className="h-4 w-4 animate-spin" />}
+                {loading ? 'Importing...' : 'Start Import'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="rounded-2xl bg-canvas p-4">
+                <p className="text-xs font-semibold text-ink-tertiary uppercase">Total</p>
+                <p className="text-2xl font-bold text-ink">{results.total}</p>
+              </div>
+              <div className="rounded-2xl bg-success/10 p-4">
+                <p className="text-xs font-semibold text-success uppercase">Success</p>
+                <p className="text-2xl font-bold text-success">{results.successCount}</p>
+              </div>
+              <div className="rounded-2xl bg-danger/10 p-4">
+                <p className="text-xs font-semibold text-danger uppercase">Failed</p>
+                <p className="text-2xl font-bold text-danger">{results.errorCount}</p>
+              </div>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto rounded-xl border border-edge bg-canvas/20">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-canvas/80 backdrop-blur-sm">
+                  <tr className="border-b border-edge">
+                    <th className="px-3 py-2 text-left">Email</th>
+                    <th className="px-3 py-2 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-edge-subtle">
+                  {results.results.map((r, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2 text-ink-secondary">{r.email || `Row ${r.row}`}</td>
+                      <td className="px-3 py-2">
+                        {r.status === 'success' ? (
+                          <span className="text-success font-medium">✓ Success ({r.updatedAverage})</span>
+                        ) : (
+                          <span className="text-danger">{r.message}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={onClose}
+                className="rounded-xl bg-ink px-6 py-2 text-sm font-bold text-surface hover:bg-ink/90"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -572,6 +700,39 @@ export default function AdminAffectationPage() {
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (!selectedId) return;
+    setBusyAction('export-pdf');
+    try {
+      const url = affectationAPI.exportCampaignResultsPdf(selectedId);
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${sessionStorage.getItem('pfe_access_token') || ''}`
+        }
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Export failed: ${res.status} ${res.statusText}`);
+      }
+
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `affectation-results-${selectedId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      setSuccess('PDF exported successfully.');
+    } catch (err) {
+      setError(err?.message || 'Failed to export PDF.');
+    } finally {
+      setBusyAction(null);
+    }
+  };
 
   const selectCampaign = useCallback((id) => {
     setSelectedId(id);
@@ -951,7 +1112,32 @@ export default function AdminAffectationPage() {
               </section>
 
               <section className="rounded-2xl border border-edge bg-surface p-5 shadow-sm">
-                <h3 className="text-base font-semibold text-ink">Results</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-ink">Results</h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleExportPdf}
+                      disabled={!results || results.length === 0 || busyAction === 'export-pdf'}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand/40 hover:text-brand transition-all disabled:opacity-50"
+                    >
+                      {busyAction === 'export-pdf' ? (
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Download className="h-3 w-3" />
+                      )}
+                      {busyAction === 'export-pdf' ? 'Exporting...' : 'Export PDF'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowImportModal(true)}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand/40 hover:text-brand transition-all"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Import Averages
+                    </button>
+                  </div>
+                </div>
                 <p className="mt-1 text-xs text-ink-tertiary">
                   The algorithm assigns each student to their highest-ordre specialite that still has quota,
                   ranking students by moyenne DESC. Run it after the voeux window closes.
@@ -959,6 +1145,13 @@ export default function AdminAffectationPage() {
                 <div className="mt-4">
                   <ResultsTable results={results} />
                 </div>
+                <ImportAveragesModal
+                  isOpen={showImportModal}
+                  onClose={() => setShowImportModal(false)}
+                  onImported={() => {
+                    if (selectedId) loadDetail(selectedId);
+                  }}
+                />
               </section>
             </>
           )}

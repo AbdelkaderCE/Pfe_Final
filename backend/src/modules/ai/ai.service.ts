@@ -68,6 +68,31 @@ const generateFallbackResponse = (context: ConversationContext): string => {
   return "Je suis votre assistant académique G11. Posez-moi une question sur le PFE, les documents, les requêtes, ou le suivi académique.";
 };
 
+/**
+ * Calls the Python AI Microservice for reclamation analysis
+ */
+export const callReclamationAnalysis = async (
+  data: any,
+  token: string
+): Promise<any> => {
+  try {
+    const response = await fetch(`${AI_SERVICE_URL}/api/v1/reclamations`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) throw new Error("Reclamation analysis failed");
+    return await response.json();
+  } catch (error) {
+    logger.error("Error calling AI Reclamation Analysis:", error);
+    throw error;
+  }
+};
+
 export const generateAIResponse = async (context: ConversationContext): Promise<AIResponse> => {
   try {
     const groqApiKey = process.env.GROQ_API_KEY;
@@ -208,6 +233,84 @@ const getSuggestedActionsForIntent = (intent: string): string[] => {
     "Poser une autre question",
     "Retourner à l'accueil",
   ];
+};
+
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5001";
+
+export interface AIAnalysisRequest {
+  document_id: number;
+  content_type: "text" | "image" | "pdf" | "mixed";
+  text_content?: string;
+  image_url?: string;
+}
+
+export interface AIAnalysisResponse {
+  is_safe: boolean;
+  safety_level: "safe" | "unsafe" | "review_required";
+  confidence: number;
+  reason: string;
+  action: "approve" | "reject" | "review";
+}
+
+/**
+ * Calls the Python AI Microservice for document analysis/moderation
+ */
+export const callAIAnalysis = async (
+  data: AIAnalysisRequest,
+  token: string
+): Promise<AIAnalysisResponse> => {
+  try {
+    const response = await fetch(`${AI_SERVICE_URL}/api/v1/documents/analyze`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = (await response.json().catch(() => ({}))) as any;
+      throw new Error(error.detail || `AI Service Error (${response.status})`);
+    }
+
+    return (await response.json()) as AIAnalysisResponse;
+  } catch (error) {
+    logger.error("Error calling AI Microservice:", error);
+    // Fallback to basic safety if service is down
+    return {
+      is_safe: true,
+      safety_level: "safe",
+      confidence: 0.5,
+      reason: "AI Service unavailable, using default pass",
+      action: "approve",
+    };
+  }
+};
+
+/**
+ * Calls the Python AI Microservice for image moderation (OCR + NSFW)
+ */
+export const callImageModeration = async (
+  imageUrl: string,
+  token: string
+): Promise<any> => {
+  try {
+    const response = await fetch(`${AI_SERVICE_URL}/api/v1/images/moderate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ image_url: imageUrl }),
+    });
+
+    if (!response.ok) throw new Error("Image moderation failed");
+    return await response.json();
+  } catch (error) {
+    logger.error("Error calling AI Image Moderation:", error);
+    throw error;
+  }
 };
 
 export const storeConversation = async (

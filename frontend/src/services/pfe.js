@@ -146,6 +146,18 @@ export const pfeAdminAPI = {
   // ── Teacher's own jury assignments + remaining-quota indicator ───
   myJuryAssignments: () => request('/api/v1/pfe/jury/me'),
   myTeacherQuota: () => request('/api/v1/pfe/teacher/quota'),
+
+  // ── Bulk config update (admin) ─────────────────────────────────
+  // Send a partial map of config keys (e.g. { submissionOpen: true, maxSubjectsPerTeacher: 5 })
+  updateConfig: (payload) =>
+    request('/api/v1/pfe/admin/config', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  // ── Teacher's allowed promos (for subject creation promo dropdown) ─
+  getTeacherPromos: (enseignantId) =>
+    request(`/api/v1/pfe/teacher/${enseignantId}/promos`),
 };
 
 export default pfeAPI;

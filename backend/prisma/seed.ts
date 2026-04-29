@@ -221,7 +221,7 @@ async function main() {
     roleNames: string[];
     emailVerified?: boolean;
     enseignantData?: { gradeId: number };
-    etudiantData?: { promoId: number; matricule: string };
+    etudiantData?: { promoId: number; matricule: string; moyenne?: number };
   }) {
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
     if (existing) {
@@ -265,7 +265,15 @@ async function main() {
           ? { enseignant: { create: { gradeId: data.enseignantData.gradeId } } }
           : {}),
         ...(data.etudiantData
-          ? { etudiant: { create: { promoId: data.etudiantData.promoId, matricule: data.etudiantData.matricule } } }
+          ? {
+              etudiant: {
+                create: {
+                  promoId: data.etudiantData.promoId,
+                  matricule: data.etudiantData.matricule,
+                  moyenne: data.etudiantData.moyenne,
+                },
+              },
+            }
           : {}),
       },
     });
@@ -313,7 +321,7 @@ async function main() {
     nom: "Bensalem",
     prenom: "Amira",
     roleNames: ["etudiant"],
-    etudiantData: { promoId: promo2025.id, matricule: "212131234567" },
+    etudiantData: { promoId: promo2025.id, matricule: "212131234567", moyenne: 14.5 },
   });
 
   await createUser({
@@ -321,7 +329,7 @@ async function main() {
     nom: "Mehdaoui",
     prenom: "Yacine",
     roleNames: ["etudiant"],
-    etudiantData: { promoId: promo2025B.id, matricule: "212131234568" },
+    etudiantData: { promoId: promo2025B.id, matricule: "212131234568", moyenne: 12.75 },
   });
 
   await createUser({
@@ -329,8 +337,59 @@ async function main() {
     nom: "Djeraba",
     prenom: "Sara",
     roleNames: ["etudiant"],
-    etudiantData: { promoId: promo2025.id, matricule: "212131234569" },
+    etudiantData: { promoId: promo2025.id, matricule: "212131234569", moyenne: 15.2 },
   });
+
+  // ── Additional Teachers (to reach 7) ─────────────────────
+  const additionalTeacherNames = [
+    { nom: "Kaddour", prenom: "Ahmed" },
+    { nom: "Ziane", prenom: "Fatima" },
+    { nom: "Mansouri", prenom: "Mustapha" },
+    { nom: "Belkacem", prenom: "Saliha" },
+    { nom: "Hamidi", prenom: "Rachid" },
+  ];
+
+  for (let i = 0; i < additionalTeacherNames.length; i++) {
+    await createUser({
+      email: `teacher${i + 3}@univ-tiaret.dz`,
+      nom: additionalTeacherNames[i].nom,
+      prenom: additionalTeacherNames[i].prenom,
+      roleNames: ["enseignant"],
+      enseignantData: { gradeId: i % 2 === 0 ? gradeMCA.id : gradeMAA.id },
+    });
+  }
+
+  // ── Additional Students (to reach 15) ────────────────────
+  const additionalStudentNames = [
+    { nom: "Larbi", prenom: "Omar" },
+    { nom: "Slimani", prenom: "Ines" },
+    { nom: "Brahimi", prenom: "Khalil" },
+    { nom: "Merah", prenom: "Zohra" },
+    { nom: "Touati", prenom: "Abdelkader" },
+    { nom: "Gherbi", prenom: "Meriem" },
+    { nom: "Ould", prenom: "Said" },
+    { nom: "Tahar", prenom: "Nabil" },
+    { nom: "Abdi", prenom: "Sofia" },
+    { nom: "Yousfi", prenom: "Karim" },
+    { nom: "Belaid", prenom: "Amine" },
+    { nom: "Saidi", prenom: "Leila" },
+  ];
+
+  for (let i = 0; i < additionalStudentNames.length; i++) {
+    const promoId = i % 2 === 0 ? promo2025.id : promo2025B.id;
+    const moyenne = parseFloat((Math.random() * (18 - 10) + 10).toFixed(2));
+    await createUser({
+      email: `student${i + 4}@univ-tiaret.dz`,
+      nom: additionalStudentNames[i].nom,
+      prenom: additionalStudentNames[i].prenom,
+      roleNames: ["etudiant"],
+      etudiantData: {
+        promoId,
+        matricule: `2121312345${70 + i}`,
+        moyenne,
+      },
+    });
+  }
 
   // ── Direct assignments: teachers ↔ promos/modules/groups, students ↔ promo/section/groups ──
   const teacherUser = await prisma.user.findUnique({

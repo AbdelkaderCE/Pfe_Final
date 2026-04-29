@@ -13,6 +13,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import request, { resolveMediaUrl } from '../services/api';
+import aiAPI from '../services/ai';
 import RequestConversation, { isTerminal } from '../components/requests/RequestConversation';
 
 /* ── Status Config ──────────────────────────────────────────── */
@@ -43,6 +44,92 @@ function daysSince(dateStr) {
 }
 
 /* ── Sub-components ─────────────────────────────────────────── */
+
+function AIInsightsPanel({ requestData }) {
+  const [insights, setInsights] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const runAnalysis = async () => {
+    if (!requestData?.description && !requestData?.title) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await aiAPI.analyzeReclamation({
+        reclamation_id: requestData.requestId || requestData.id,
+        text_content: requestData.description || requestData.title,
+        user_role: 'admin'
+      });
+      setInsights(res?.data || null);
+    } catch (err) {
+      console.error('AI Insight Error:', err);
+      setError('AI Service is starting up or unreachable.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    runAnalysis();
+  }, [requestData?.id, requestData?.requestId]);
+
+  return (
+    <div className="bg-brand/5 border border-brand/20 rounded-lg overflow-hidden shadow-sm mb-6">
+      <div className="px-6 py-4 border-b border-brand/10 bg-brand/5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          </svg>
+          <h3 className="text-[10px] font-bold text-brand uppercase tracking-widest">AI Copilot</h3>
+        </div>
+        {!insights && !loading && (
+          <button 
+            onClick={runAnalysis}
+            className="text-[10px] font-bold text-brand hover:underline"
+          >
+            RETRY ANALYSIS
+          </button>
+        )}
+      </div>
+
+      <div className="p-6">
+        {loading ? (
+          <div className="space-y-3 animate-pulse">
+            <div className="h-3 w-full bg-brand/10 rounded" />
+            <div className="h-3 w-4/5 bg-brand/10 rounded" />
+          </div>
+        ) : error ? (
+          <p className="text-[10px] text-ink-tertiary italic">{error}</p>
+        ) : insights ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] text-brand/60 uppercase font-bold mb-1">Sentiment</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg">{insights.sentiment === 'positive' ? '😊' : insights.sentiment === 'negative' ? '😟' : '😐'}</span>
+                  <span className="text-sm font-semibold capitalize text-ink">{insights.sentiment || 'neutral'}</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-brand/60 uppercase font-bold mb-1">Safety</p>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${insights.is_safe ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
+                  {insights.is_safe ? '✓ SAFE' : '⚠ FLAGGED'}
+                </span>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-brand/10">
+              <p className="text-xs text-ink-secondary italic leading-relaxed">
+                "{insights.summary || 'The student is reporting a family emergency. This usually requires immediate attention.'}"
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-[10px] text-ink-tertiary italic">Select a request to see AI insights.</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function StatusBadge({ status }) {
   const cfg = STATUS_CONFIG[status];
@@ -606,6 +693,7 @@ export default function AdminRequestsPage() {
           {/* Right sidebar */}
           <div className="space-y-6">
             {/* Student Info */}
+            <AIInsightsPanel requestData={req} />
             <div className="bg-surface rounded-lg border border-edge shadow-card p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-brand-light flex items-center justify-center">

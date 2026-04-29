@@ -1,16 +1,10 @@
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
-
-async function main() {
-  const user = await prisma.user.findUnique({
-    where: { email: 'admin@univ-tiaret.dz' },
-    include: {
-      userRoles: {
-        include: { role: true }
-      }
-    }
-  });
-  console.log(JSON.stringify(user, null, 2));
+console.log('CWD:', process.cwd());
+console.log('__dirname:', __dirname);
+const path = require('path');
+const fs = require('fs');
+const fontsDir = path.join(process.cwd(), "assets", "fonts");
+console.log('Fonts Dir:', fontsDir);
+console.log('Exists:', fs.existsSync(fontsDir));
+if (fs.existsSync(fontsDir)) {
+  console.log('Files:', fs.readdirSync(fontsDir));
 }
-
-main().catch(console.error).finally(() => prisma.$disconnect());

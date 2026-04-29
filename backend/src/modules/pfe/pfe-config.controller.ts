@@ -5,6 +5,9 @@ import {
   isSubmissionOpen,
   setStudentVisibilityOpen,
   setSubmissionOpen,
+  setMaxSubjectsPerTeacher,
+  setStudentSelectionAllowed,
+  setJuryEnabled,
 } from "./pfe-config.service";
 import { emitSubmissionOpenedAlerts } from "./pfe-alerts.service";
 
@@ -100,6 +103,48 @@ export const getPfeConfigSnapshotHandler = async (_req: Request, res: Response) 
     res.status(500).json({
       success: false,
       error: { code: "PFE_CONFIG_READ_FAILED", message },
+    });
+  }
+};
+
+/**
+ * PUT /admin/config — update multiple PFE config settings at once.
+ * The body is a partial map of config keys to their new values.
+ */
+export const updatePfeConfigHandler = async (req: Request & { user?: { id?: number } }, res: Response) => {
+  try {
+    const body = req.body || {};
+    const userId = req.user?.id ?? null;
+
+    // Process each setting if present in the body
+    if (typeof body.submissionOpen === "boolean") {
+      const previous = await isSubmissionOpen();
+      await setSubmissionOpen(body.submissionOpen, userId);
+      if (!previous && body.submissionOpen) {
+        await emitSubmissionOpenedAlerts(userId);
+      }
+    }
+    if (typeof body.studentVisibilityOpen === "boolean") {
+      await setStudentVisibilityOpen(body.studentVisibilityOpen, userId);
+    }
+    if (typeof body.maxSubjectsPerTeacher === "number") {
+      await setMaxSubjectsPerTeacher(body.maxSubjectsPerTeacher, userId);
+    }
+    if (typeof body.allowStudentSelection === "boolean") {
+      await setStudentSelectionAllowed(body.allowStudentSelection, userId);
+    }
+    if (typeof body.juryEnabled === "boolean") {
+      await setJuryEnabled(body.juryEnabled, userId);
+    }
+
+    // Return the updated snapshot
+    const snapshot = await getPfeConfigSnapshot();
+    res.json({ success: true, data: snapshot });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Internal error";
+    res.status(500).json({
+      success: false,
+      error: { code: "PFE_CONFIG_WRITE_FAILED", message },
     });
   }
 };

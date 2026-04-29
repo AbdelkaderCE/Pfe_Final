@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, CheckCircle2, Clock, Trophy, X, XCircle } from 'lucide-react';
 import { affectationAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const STATUS_META = {
   accepte: {
@@ -67,6 +68,7 @@ function Banner({ kind, children, onDismiss }) {
 }
 
 export default function StudentSpecialiteChoicePage({ role = 'student' }) {
+  const { user: authUser } = useAuth();
   const canUseStudentApis = role === 'student';
 
   const [loading, setLoading] = useState(true);
@@ -238,6 +240,12 @@ export default function StudentSpecialiteChoicePage({ role = 'student' }) {
             Rank your preferred specialites for an open affectation campaign. Your ranking is used by the algorithm,
             combined with your average, to assign you to a specialite within the available quotas.
           </p>
+          {authUser?.etudiant?.moyenne && (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand/10 px-3 py-1.5 text-sm font-semibold text-brand">
+              <Trophy className="h-4 w-4" />
+              Your average: {authUser.etudiant.moyenne}
+            </div>
+          )}
         </div>
       </section>
 

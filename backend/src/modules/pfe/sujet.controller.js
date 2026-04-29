@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const { isSubmissionOpen } = require('./pfe-config.service');
+const { isSubmissionOpen, getMaxSubjectsPerTeacher, isStudentSelectionAllowed } = require('./pfe-config.service');
 const { emitSubjectCreatedAlerts } = require('./pfe-alerts.service');
 
 const prisma = new PrismaClient();
@@ -7,6 +7,10 @@ const prisma = new PrismaClient();
 const isAdmin = (req) =>
   Array.isArray(req?.user?.roles) &&
   req.user.roles.some((r) => String(r || '').toLowerCase() === 'admin');
+
+const isStudent = (req) =>
+  Array.isArray(req?.user?.roles) &&
+  req.user.roles.some((r) => String(r || '').toLowerCase() === 'etudiant');
 
 const toPositiveInt = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -21,18 +25,19 @@ const getCurrentAcademicYear = () => {
   return `${startYear}/${startYear + 1}`;
 };
 
-const resolvePromoId = async (rawPromoId) => {
-  const directPromoId = toPositiveInt(rawPromoId);
-  if (directPromoId) {
-    return directPromoId;
-  }
-
-  const fallbackPromo = await prisma.promo.findFirst({
-    orderBy: { id: 'asc' },
-    select: { id: true },
+/**
+ * Resolve the promoIds a teacher is allowed to post subjects for.
+ * Derived from their `enseignement` records (modules → promo links).
+ */
+const getTeacherAllowedPromoIds = async (enseignantId) => {
+  const enseignements = await prisma.enseignement.findMany({
+    where: { enseignantId },
+    select: { promoId: true },
   });
-
-  return fallbackPromo?.id || null;
+  const ids = enseignements
+    .map((e) => e.promoId)
+    .filter((id) => Number.isInteger(id) && id > 0);
+  return [...new Set(ids)];
 };
 
 class SujetController {
@@ -41,7 +46,6 @@ class SujetController {
   try {
     const data = req.body;
     const enseignantId = toPositiveInt(data.enseignantId);
-    const promoId = await resolvePromoId(data.promoId);
     const anneeUniversitaire =
       typeof data.anneeUniversitaire === 'string' && data.anneeUniversitaire.trim()
         ? data.anneeUniversitaire.trim()
@@ -52,13 +56,6 @@ class SujetController {
       return res.status(400).json({
         success: false,
         error: 'enseignantId est requis et doit etre un entier positif',
-      });
-    }
-
-    if (!promoId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Aucune promo disponible. Veuillez configurer les promotions ou fournir promoId.',
       });
     }
 
@@ -76,8 +73,57 @@ class SujetController {
         });
       }
     }
+
+    // ── Promo enforcement ─────────────────────────────────────────
+    // Teacher must supply a promoId. If not admin, we verify the teacher
+    // is actually assigned to that promo via their enseignement records.
+    let promoId = toPositiveInt(data.promoId);
+
+    if (!isAdmin(req)) {
+      const allowedPromoIds = await getTeacherAllowedPromoIds(enseignantId);
+      if (allowedPromoIds.length === 0) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'NO_PROMO_ASSIGNED',
+            message: 'You are not assigned to any promo. Contact administration to be assigned.',
+          },
+        });
+      }
+      // If no promoId provided, auto-assign first allowed promo
+      if (!promoId) {
+        promoId = allowedPromoIds[0];
+      }
+      // Verify teacher has access to requested promo
+      if (!allowedPromoIds.includes(promoId)) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'PROMO_FORBIDDEN',
+            message: 'You can only create subjects for promos you are assigned to.',
+          },
+        });
+      }
+    } else {
+      // Admin fallback: if no promoId provided, pick the first available
+      if (!promoId) {
+        const fallbackPromo = await prisma.promo.findFirst({
+          orderBy: { id: 'asc' },
+          select: { id: true },
+        });
+        promoId = fallbackPromo?.id || null;
+      }
+    }
+
+    if (!promoId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Aucune promo disponible. Veuillez configurer les promotions ou fournir promoId.',
+      });
+    }
     
-    // RÈGLE 2: Vérifier le nombre de sujets par enseignant (max 3)
+    // ── Max subjects per teacher (config-driven) ──────────────────
+    const maxSubjects = await getMaxSubjectsPerTeacher();
     const sujetsCount = await prisma.pfeSujet.count({
       where: { 
         enseignantId,
@@ -85,10 +131,10 @@ class SujetController {
       }
     });
     
-    if (sujetsCount >= 3) {
+    if (sujetsCount >= maxSubjects && !isAdmin(req)) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Un enseignant ne peut pas proposer plus de 3 sujets par année universitaire' 
+        error: `Un enseignant ne peut pas proposer plus de ${maxSubjects} sujets par année universitaire` 
       });
     }
     
@@ -150,6 +196,21 @@ class SujetController {
 
       if (anneeUniversitaire) {
         where.anneeUniversitaire = anneeUniversitaire;
+      }
+
+      // ── Student promo isolation ───────────────────────────────────
+      // When the caller is a student, restrict to their promo only.
+      if (isStudent(req) && req.user?.id) {
+        const student = await prisma.etudiant.findUnique({
+          where: { userId: Number(req.user.id) },
+          select: { promoId: true },
+        });
+        if (student?.promoId) {
+          where.promoId = student.promoId;
+        } else {
+          // Student has no promo → return empty
+          return res.json({ success: true, data: [] });
+        }
       }
 
       const sujets = await prisma.pfeSujet.findMany({

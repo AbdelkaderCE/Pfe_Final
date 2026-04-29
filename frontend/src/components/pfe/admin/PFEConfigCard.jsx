@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Settings2, Users, BookOpen, Scale, Eye } from 'lucide-react';
 import { pfeAdminAPI } from '../../../services/pfe';
 
-const SWITCH_BASE = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors';
+const SWITCH_BASE = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer';
 const SWITCH_KNOB = 'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform';
 
 const buildToast = (type, message) => ({ id: Date.now(), type, message });
@@ -10,47 +10,41 @@ const buildToast = (type, message) => ({ id: Date.now(), type, message });
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const tone = toast.type === 'error'
-    ? 'border-rose-200 bg-rose-50 text-rose-700'
-    : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    ? 'border-danger/30 bg-danger/5 text-danger'
+    : 'border-success/30 bg-success/5 text-success';
   return (
     <div className={`rounded-2xl border px-4 py-3 text-sm ${tone}`}>
       <div className="flex items-start justify-between gap-3">
         <span>{toast.message}</span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-full px-2 text-xs font-semibold"
-        >
-          Close
-        </button>
+        <button type="button" onClick={onClose} className="rounded-full px-2 text-xs font-semibold">Close</button>
       </div>
     </div>
   );
 }
 
-function ToggleRow({
-  label,
-  description,
-  enabled,
-  loading,
-  onToggle,
-  statusLabel,
-}) {
+function ToggleRow({ label, description, enabled, loading, onToggle, Icon }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-edge bg-surface px-4 py-4">
-      <div>
-        <p className="text-sm font-semibold text-ink">{label}</p>
-        <p className="text-xs text-ink-tertiary">{description}</p>
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-edge bg-canvas/40 px-5 py-4 transition-colors hover:bg-canvas/70">
+      <div className="flex items-start gap-3">
+        {Icon && (
+          <span className={`mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg ${enabled ? 'bg-success/10 text-success' : 'bg-ink-tertiary/10 text-ink-tertiary'}`}>
+            <Icon className="h-4 w-4" />
+          </span>
+        )}
+        <div>
+          <p className="text-sm font-semibold text-ink">{label}</p>
+          <p className="text-xs text-ink-tertiary mt-0.5">{description}</p>
+        </div>
       </div>
       <div className="flex items-center gap-3">
-        <span className={`text-xs font-semibold ${enabled ? 'text-emerald-600' : 'text-rose-600'}`}>
-          {statusLabel}
+        <span className={`text-xs font-semibold ${enabled ? 'text-success' : 'text-ink-muted'}`}>
+          {enabled ? 'Enabled' : 'Disabled'}
         </span>
         <button
           type="button"
           onClick={onToggle}
           disabled={loading}
-          className={`${SWITCH_BASE} ${enabled ? 'bg-emerald-500' : 'bg-slate-300'} ${loading ? 'opacity-60' : ''}`}
+          className={`${SWITCH_BASE} ${enabled ? 'bg-success' : 'bg-ink-tertiary/30'} ${loading ? 'opacity-60' : ''}`}
           aria-pressed={enabled}
         >
           <span className={`${SWITCH_KNOB} ${enabled ? 'translate-x-5' : 'translate-x-1'}`} />
@@ -61,17 +55,48 @@ function ToggleRow({
   );
 }
 
+function NumberRow({ label, description, value, onChange, loading, min = 1, max = 20, Icon }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-edge bg-canvas/40 px-5 py-4 transition-colors hover:bg-canvas/70">
+      <div className="flex items-start gap-3">
+        {Icon && (
+          <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10 text-brand">
+            <Icon className="h-4 w-4" />
+          </span>
+        )}
+        <div>
+          <p className="text-sm font-semibold text-ink">{label}</p>
+          <p className="text-xs text-ink-tertiary mt-0.5">{description}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          disabled={loading}
+          className="w-20 rounded-xl border border-edge bg-control-bg px-3 py-2 text-center text-sm font-semibold text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30 disabled:opacity-60"
+        />
+        {loading && <Loader2 className="h-4 w-4 animate-spin text-ink-tertiary" />}
+      </div>
+    </div>
+  );
+}
+
 export default function PFEConfigCard() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState({ submission: false, visibility: false });
-  const [config, setConfig] = useState({ submissionOpen: false, studentVisibilityOpen: true });
+  const [saving, setSaving] = useState({});
+  const [config, setConfig] = useState({
+    submissionOpen: false,
+    studentVisibilityOpen: true,
+    maxSubjectsPerTeacher: 3,
+    allowStudentSelection: false,
+    juryEnabled: true,
+  });
   const [toast, setToast] = useState(null);
   const [error, setError] = useState('');
-
-  const statusText = useMemo(() => ({
-    submission: config.submissionOpen ? 'Enabled' : 'Disabled',
-    visibility: config.studentVisibilityOpen ? 'Enabled' : 'Disabled',
-  }), [config]);
 
   useEffect(() => {
     let alive = true;
@@ -85,6 +110,9 @@ export default function PFEConfigCard() {
         setConfig({
           submissionOpen: Boolean(data.submissionOpen),
           studentVisibilityOpen: Boolean(data.studentVisibilityOpen),
+          maxSubjectsPerTeacher: Number(data.maxSubjectsPerTeacher) || 3,
+          allowStudentSelection: Boolean(data.allowStudentSelection),
+          juryEnabled: data.juryEnabled !== false,
         });
       } catch (err) {
         if (!alive) return;
@@ -93,7 +121,6 @@ export default function PFEConfigCard() {
         if (alive) setLoading(false);
       }
     };
-
     load();
     return () => { alive = false; };
   }, []);
@@ -105,40 +132,56 @@ export default function PFEConfigCard() {
   }, [toast]);
 
   const handleToggle = async (key) => {
-    const isSubmission = key === 'submissionOpen';
-    setSaving((prev) => ({ ...prev, [isSubmission ? 'submission' : 'visibility']: true }));
+    setSaving((prev) => ({ ...prev, [key]: true }));
     setError('');
     try {
       const next = !config[key];
-      if (isSubmission) {
-        const res = await pfeAdminAPI.setSubmissionFlag(next);
-        setConfig((prev) => ({ ...prev, submissionOpen: Boolean(res?.data?.isSubmissionOpen ?? next) }));
-        setToast(buildToast('success', `Subject submission ${next ? 'enabled' : 'disabled'}.`));
-      } else {
-        const res = await pfeAdminAPI.setStudentVisibilityFlag(next);
-        setConfig((prev) => ({ ...prev, studentVisibilityOpen: Boolean(res?.data?.isStudentVisibilityOpen ?? next) }));
-        setToast(buildToast('success', `Student visibility ${next ? 'enabled' : 'disabled'}.`));
-      }
+      const res = await pfeAdminAPI.updateConfig({ [key]: next });
+      const data = res?.data || {};
+      setConfig((prev) => ({ ...prev, ...data }));
+      const labels = {
+        submissionOpen: 'Subject submission',
+        studentVisibilityOpen: 'Student visibility',
+        allowStudentSelection: 'Student selection',
+        juryEnabled: 'Jury system',
+      };
+      setToast(buildToast('success', `${labels[key] || key} ${next ? 'enabled' : 'disabled'}.`));
     } catch (err) {
       setToast(buildToast('error', err?.message || 'Update failed.'));
     } finally {
-      setSaving((prev) => ({ ...prev, [isSubmission ? 'submission' : 'visibility']: false }));
+      setSaving((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const handleNumberChange = async (key, value) => {
+    const sanitized = Math.max(1, Math.min(20, Math.round(value)));
+    setConfig((prev) => ({ ...prev, [key]: sanitized }));
+    setSaving((prev) => ({ ...prev, [key]: true }));
+    try {
+      const res = await pfeAdminAPI.updateConfig({ [key]: sanitized });
+      const data = res?.data || {};
+      setConfig((prev) => ({ ...prev, ...data }));
+      setToast(buildToast('success', `Max subjects per teacher set to ${sanitized}.`));
+    } catch (err) {
+      setToast(buildToast('error', err?.message || 'Update failed.'));
+    } finally {
+      setSaving((prev) => ({ ...prev, [key]: false }));
     }
   };
 
   return (
-    <section className="rounded-3xl border border-edge bg-surface p-6 shadow-card space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-tertiary">PFE Configuration</p>
-          <h2 className="mt-2 text-lg font-semibold text-ink">Visibility and workflow</h2>
-          <p className="text-xs text-ink-tertiary">Instant toggles for PFE access windows.</p>
-        </div>
+    <section className="rounded-3xl border border-edge bg-surface p-6 shadow-card space-y-5">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-tertiary">PFE Configuration</p>
+        <h2 className="mt-2 text-lg font-semibold text-ink">System Settings</h2>
+        <p className="text-xs text-ink-tertiary mt-1">
+          Control PFE workflows, visibility windows, and feature flags. Changes take effect immediately.
+        </p>
       </div>
 
       {toast && <Toast toast={toast} onClose={() => setToast(null)} />}
       {error && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-2xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
@@ -149,21 +192,59 @@ export default function PFEConfigCard() {
         </div>
       ) : (
         <div className="space-y-3">
+          {/* ── Submission & Visibility ──────────────────────── */}
+          <div className="pb-1">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-muted mb-2">Submission & Visibility</p>
+          </div>
           <ToggleRow
+            Icon={BookOpen}
             label="Enable subject submission"
-            description="Teachers can create PFE subjects."
+            description="Teachers can propose new PFE subjects."
             enabled={config.submissionOpen}
-            loading={saving.submission}
+            loading={saving.submissionOpen}
             onToggle={() => handleToggle('submissionOpen')}
-            statusLabel={statusText.submission}
           />
           <ToggleRow
+            Icon={Eye}
             label="Enable student visibility"
-            description="Students can browse and select subjects."
+            description="Students can browse the list of available subjects."
             enabled={config.studentVisibilityOpen}
-            loading={saving.visibility}
+            loading={saving.studentVisibilityOpen}
             onToggle={() => handleToggle('studentVisibilityOpen')}
-            statusLabel={statusText.visibility}
+          />
+          <ToggleRow
+            Icon={Users}
+            label="Allow student selection"
+            description="Students can select and claim PFE subjects. When disabled, only admin can assign."
+            enabled={config.allowStudentSelection}
+            loading={saving.allowStudentSelection}
+            onToggle={() => handleToggle('allowStudentSelection')}
+          />
+
+          {/* ── Limits ──────────────────────────────────────── */}
+          <div className="pt-3 pb-1">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-muted mb-2">Limits & Rules</p>
+          </div>
+          <NumberRow
+            Icon={BookOpen}
+            label="Max subjects per teacher"
+            description="Maximum number of PFE subjects a teacher may propose per academic year."
+            value={config.maxSubjectsPerTeacher}
+            onChange={(v) => handleNumberChange('maxSubjectsPerTeacher', v)}
+            loading={saving.maxSubjectsPerTeacher}
+          />
+
+          {/* ── Features ────────────────────────────────────── */}
+          <div className="pt-3 pb-1">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-muted mb-2">Features</p>
+          </div>
+          <ToggleRow
+            Icon={Scale}
+            label="Enable jury system"
+            description="Allow jury assignment and defense scheduling."
+            enabled={config.juryEnabled}
+            loading={saving.juryEnabled}
+            onToggle={() => handleToggle('juryEnabled')}
           />
         </div>
       )}

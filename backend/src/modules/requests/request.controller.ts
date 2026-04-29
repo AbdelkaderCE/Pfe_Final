@@ -816,12 +816,18 @@ export const getMyReclamations = async (req: AuthRequest, res: Response): Promis
       rejected: all.filter((r) => r.status === "refusee").length,
     };
 
+    const attachmentMap = await loadReclamationAttachmentsMap(reclamations.map((item) => item.id));
+
     res.status(200).json({
       success: true,
-      data: reclamations.map((item) => ({
-        ...item,
-        workflowStage: workflowStageMap.get(item.id) || mapReclamationStatusToWorkflowStage(item.status),
-      })),
+      data: await Promise.all(
+        reclamations.map(async (item) => ({
+          ...item,
+          attachments: attachmentMap.get(item.id) || [],
+          timeline: await listRequestWorkflowHistory("reclamation", item.id),
+          workflowStage: workflowStageMap.get(item.id) || mapReclamationStatusToWorkflowStage(item.status),
+        }))
+      ),
       stats,
     });
   } catch (error) {
@@ -1354,12 +1360,18 @@ export const getMyJustifications = async (req: AuthRequest, res: Response): Prom
       rejected: all.filter((j) => j.status === "refuse").length,
     };
 
+    const attachmentMap = await loadJustificationAttachmentsMap(justifications.map((item) => item.id));
+
     res.status(200).json({
       success: true,
-      data: justifications.map((item) => ({
-        ...item,
-        workflowStage: workflowStageMap.get(item.id) || mapJustificationStatusToWorkflowStage(item.status),
-      })),
+      data: await Promise.all(
+        justifications.map(async (item) => ({
+          ...item,
+          attachments: attachmentMap.get(item.id) || [],
+          timeline: await listRequestWorkflowHistory("justification", item.id),
+          workflowStage: workflowStageMap.get(item.id) || mapJustificationStatusToWorkflowStage(item.status),
+        }))
+      ),
       stats,
     });
   } catch (error) {

@@ -125,27 +125,119 @@ function AdminValidationQueue({ subjects, loading, error, onValidate, onReject, 
   );
 }
 
+function GroupDetailsModal({ group, onClose }) {
+  if (!group) return null;
+  const subject = group.sujetFinal;
+  const members = group.groupMembers || [];
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-surface w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-edge animate-in zoom-in-95 duration-200">
+        <div className="p-6 border-b border-edge flex items-center justify-between bg-surface-200/50">
+          <div>
+            <h3 className="text-xl font-bold text-ink">{group.nom_ar || group.nom_en || `Group #${group.id}`}</h3>
+            <p className="text-sm text-ink-tertiary">Administrative group & subject overview</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-surface-300 transition-colors">
+            <XCircle className="w-6 h-6 text-ink-muted" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          {/* Subject Details */}
+          <section className="space-y-3">
+            <div className="flex items-center gap-2 text-brand">
+              <FileText className="w-5 h-5" />
+              <h4 className="font-bold uppercase tracking-wider text-xs">Project Subject</h4>
+            </div>
+            <div className="rounded-2xl border border-edge bg-surface-200/30 p-4 space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-ink-muted uppercase mb-1">Titles</p>
+                <p className="text-base font-bold text-ink leading-relaxed">{subject?.titre_ar}</p>
+                {subject?.titre_en && <p className="text-sm text-ink-secondary mt-1">{subject.titre_en}</p>}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2 border-y border-edge-subtle my-2">
+                <div>
+                  <p className="text-[10px] font-bold text-ink-muted uppercase mb-0.5">Encadrant (Teacher)</p>
+                  <p className="text-sm font-semibold text-ink">{getUserDisplayName(subject?.enseignant?.user)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-ink-muted uppercase mb-0.5">Project Type</p>
+                  <span className="text-xs font-semibold text-brand capitalize">{subject?.typeProjet || 'N/A'}</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-ink-muted uppercase mb-1">Description</p>
+                <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap italic">
+                  {subject?.description_ar || 'No description provided.'}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Members Details */}
+          <section className="space-y-3">
+            <div className="flex items-center gap-2 text-success">
+              <Users className="w-5 h-5" />
+              <h4 className="font-bold uppercase tracking-wider text-xs">Group Members ({members.length})</h4>
+            </div>
+            <div className="divide-y divide-edge border border-edge rounded-2xl overflow-hidden">
+              {members.map((m, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 bg-surface hover:bg-surface-200/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center text-sm font-bold text-brand border border-brand/20">
+                      {(m?.etudiant?.user?.prenom?.[0] || '?').toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-ink">
+                        {m?.etudiant?.user?.prenom} {m?.etudiant?.user?.nom}
+                      </p>
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${m.role === 'chef_groupe' ? 'bg-brand/10 text-brand' : 'bg-surface-300 text-ink-tertiary'}`}>
+                        {m.role === 'chef_groupe' ? 'Team Lead' : 'Member'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-mono font-bold text-ink-secondary">{m?.etudiant?.matricule || 'N/A'}</p>
+                    <p className="text-[10px] uppercase tracking-tighter text-ink-muted">Matricule</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <div className="p-4 bg-surface-200/50 border-t border-edge flex justify-end">
+          <button onClick={onClose} className="px-6 py-2 rounded-xl bg-ink text-surface font-bold text-sm shadow-lg hover:opacity-90 transition-all">
+            Close Overview
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminGroupsOverview({ groups, loading, error, onRetry }) {
-  const list = Array.isArray(groups) ? groups : [];
   const [showModal, setShowModal] = useState(false);
+  const [selectedGroupDetails, setSelectedGroupDetails] = useState(null);
+  const [formData, setFormData] = useState({ nom_ar: '', nom_en: '', coEncadrantId: '', members: [{ etudiantId: '', role: 'chef_groupe' }] });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const [users, setUsers] = useState({ teachers: [], students: [] });
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [formData, setFormData] = useState({
-    nom_ar: '', nom_en: '', coEncadrantId: '', members: [{ etudiantId: '', role: 'chef_groupe' }]
-  });
-  const [submitError, setSubmitError] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
 
+  const list = Array.isArray(groups) ? groups : [];
+  
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
-      const [teachersRes, studentsRes] = await Promise.all([
+      const [tRes, sRes] = await Promise.all([
         request('/api/v1/admin/users?role=enseignant&limit=1000'),
         request('/api/v1/admin/users?role=etudiant&limit=1000')
       ]);
       setUsers({
-        teachers: teachersRes?.data?.users || teachersRes?.data || [],
-        students: studentsRes?.data?.users || studentsRes?.data || []
+        teachers: tRes?.data?.users || tRes?.data || [],
+        students: sRes?.data?.users || sRes?.data || []
       });
     } catch (err) {
       console.error(err);
@@ -189,39 +281,49 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
       {loading ? <SkeletonList count={2} /> : error ? <ErrorBanner error={error} onRetry={onRetry} /> : list.length === 0 ? (
         <EmptyState icon={Users} title="No groups found" hint="Groups will appear here once formed." />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {list.map((group) => {
-            const subject = group.sujetFinal;
-            const memberCount = group.groupMembers?.length || 0;
-            return (
-              <div key={group.id} className="rounded-2xl border border-edge bg-surface p-5 shadow-card hover:shadow-card-hover">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div>
-                    <h3 className="text-sm font-semibold text-ink">{group.nom_ar || group.nom_en || `Group #${group.id}`}</h3>
-                    <p className="mt-0.5 text-xs text-ink-tertiary">{memberCount} member{memberCount !== 1 ? 's' : ''}</p>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {list.map((group) => {
+              const subject = group.sujetFinal;
+              const memberCount = group.groupMembers?.length || 0;
+              return (
+                <div
+                  key={group.id}
+                  onClick={() => setSelectedGroupDetails(group)}
+                  className="group rounded-2xl border border-edge bg-surface p-5 shadow-card hover:shadow-card-hover hover:border-brand/40 transition-all cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-ink group-hover:text-brand transition-colors">{group.nom_ar || group.nom_en || `Group #${group.id}`}</h3>
+                      <p className="mt-0.5 text-xs text-ink-tertiary">{memberCount} member{memberCount !== 1 ? 's' : ''}</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
+                      <span className="w-1.5 h-1.5 rounded-full bg-success" /> Active
+                    </span>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-                    <span className="w-1.5 h-1.5 rounded-full bg-success" /> Active
-                  </span>
-                </div>
-                <div className="rounded-xl bg-surface-200/60 px-3 py-2.5 mb-3">
-                  <p className="text-xs font-medium text-ink-secondary mb-0.5">Subject</p>
-                  <p className="text-sm text-ink font-medium truncate">{subject?.titre_ar || subject?.titre_en || 'No subject assigned'}</p>
-                  <p className="text-xs text-ink-tertiary mt-0.5">{getUserDisplayName(subject?.enseignant?.user)}</p>
-                </div>
-                {memberCount > 0 && (
-                  <div className="flex items-center gap-1">
-                    {(group.groupMembers || []).slice(0, 4).map((m, idx) => (
-                      <div key={idx} className="w-7 h-7 rounded-full bg-brand/20 border-2 border-surface flex items-center justify-center text-xs font-semibold text-brand -ml-1 first:ml-0">
-                        {(m?.user?.prenom?.[0] || m?.prenom?.[0] || '?').toUpperCase()}
+                  <div className="rounded-xl bg-surface-200/60 px-3 py-2.5 mb-3 group-hover:bg-brand/5 transition-colors">
+                    <p className="text-xs font-medium text-ink-secondary mb-0.5">Subject</p>
+                    <p className="text-sm text-ink font-medium truncate">{subject?.titre_ar || subject?.titre_en || 'No subject assigned'}</p>
+                    <p className="text-xs text-ink-tertiary mt-0.5">{getUserDisplayName(subject?.enseignant?.user)}</p>
+                  </div>
+                  {memberCount > 0 && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        {(group.groupMembers || []).slice(0, 4).map((m, idx) => (
+                          <div key={idx} className="w-7 h-7 rounded-full bg-brand/20 border-2 border-surface flex items-center justify-center text-xs font-semibold text-brand -ml-1 first:ml-0">
+                            {(m?.etudiant?.user?.prenom?.[0] || '?').toUpperCase()}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                      <span className="text-[10px] font-bold text-brand opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-wider">Inspect Details →</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <GroupDetailsModal group={selectedGroupDetails} onClose={() => setSelectedGroupDetails(null)} />
+        </>
       )}
 
       {showModal && (
@@ -285,11 +387,286 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
   );
 }
 
-function DefensePanel() {
+function DefensePanel({ groups }) {
+  const [teachers, setTeachers] = useState([]);
+  const [juryData, setJuryData] = useState({});
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [formData, setFormData] = useState({ presidentId: '', members: [], date: '', time: '', room: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const groupList = Array.isArray(groups) ? groups : [];
+
+  // Fetch teachers + existing jury data
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoadingTeachers(true);
+      try {
+        const [teachersRes, juryRes] = await Promise.all([
+          request('/api/v1/admin/users?role=enseignant&limit=1000'),
+          request('/api/v1/pfe/jury'),
+        ]);
+        if (!alive) return;
+        setTeachers(teachersRes?.data?.users || teachersRes?.data || []);
+        // Group jury by groupId
+        const jMap = {};
+        for (const j of (juryRes?.data || [])) {
+          if (!j.groupId) continue;
+          if (!jMap[j.groupId]) jMap[j.groupId] = [];
+          jMap[j.groupId].push(j);
+        }
+        setJuryData(jMap);
+      } catch { /* swallow */ }
+      finally { if (alive) setLoadingTeachers(false); }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const openGroup = (group) => {
+    setSelectedGroup(group);
+    setError('');
+    setSuccess('');
+    const existing = juryData[group.id] || [];
+    const president = existing.find(j => j.role === 'president');
+    const members = existing.filter(j => j.role !== 'president');
+    setFormData({
+      presidentId: president?.enseignant?.id ? String(president.enseignant.id) : '',
+      members: members.map(m => ({ enseignantId: String(m.enseignant?.id || ''), role: m.role || 'examinateur' })),
+      date: group.dateSoutenance ? new Date(group.dateSoutenance).toISOString().split('T')[0] : '',
+      time: group.dateSoutenance ? new Date(group.dateSoutenance).toISOString().slice(11, 16) : '',
+      room: group.salleSoutenance || '',
+    });
+  };
+
+  const handleAddMember = () => {
+    setFormData(p => ({ ...p, members: [...p.members, { enseignantId: '', role: 'examinateur' }] }));
+  };
+
+  const handleRemoveMember = (idx) => {
+    setFormData(p => ({ ...p, members: p.members.filter((_, i) => i !== idx) }));
+  };
+
+  const handleSave = async () => {
+    if (!selectedGroup || !formData.presidentId) {
+      setError('President is required.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      await request(`/api/v1/pfe/admin/groups/${selectedGroup.id}/jury/compose`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          presidentId: Number(formData.presidentId),
+          members: formData.members.filter(m => m.enseignantId).map(m => ({
+            enseignantId: Number(m.enseignantId),
+            role: m.role,
+          })),
+          date: formData.date || null,
+          time: formData.time || null,
+          room: formData.room || null,
+        }),
+      });
+      // Refresh jury data
+      const juryRes = await request('/api/v1/pfe/jury');
+      const jMap = {};
+      for (const j of (juryRes?.data || [])) {
+        if (!j.groupId) continue;
+        if (!jMap[j.groupId]) jMap[j.groupId] = [];
+        jMap[j.groupId].push(j);
+      }
+      setJuryData(jMap);
+      setSuccess('Jury composed successfully! Alerts sent to students and jury members.');
+    } catch (err) {
+      setError(err?.message || 'Failed to compose jury.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getTeacherLabel = (t) => `${t.prenom || ''} ${t.nom || ''}`.trim() || t.email || `#${t.id}`;
+
   return (
     <div className="space-y-4">
-      <SectionHeader eyebrow="Defense Planning" title="Defense Schedule" subtitle="Oral defense sessions and jury assignments" />
-      <EmptyState icon={CalendarDays} title="Defense planning coming soon" hint="This module is under development." />
+      <SectionHeader
+        eyebrow="Defense Planning"
+        title="Jury Management"
+        subtitle="Assign jury members and schedule defenses for each PFE group"
+      />
+
+      {groupList.length === 0 ? (
+        <EmptyState icon={CalendarDays} title="No groups found" hint="Create PFE groups first, then assign juries." />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
+          {/* Group list */}
+          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+            {groupList.map(group => {
+              const hasJury = (juryData[group.id] || []).length > 0;
+              const isSelected = selectedGroup?.id === group.id;
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => openGroup(group)}
+                  className={`w-full text-left rounded-2xl border p-4 transition-all ${isSelected ? 'border-brand bg-brand/5 shadow-md' : 'border-edge bg-surface hover:bg-surface-200/50'}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-ink truncate">{group.nom_ar || group.nom_en || `Group #${group.id}`}</h4>
+                    {hasJury ? (
+                      <span className="flex-shrink-0 inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
+                        <CheckCircle2 className="w-3 h-3" /> Jury Set
+                      </span>
+                    ) : (
+                      <span className="flex-shrink-0 inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-semibold text-warning">
+                        Pending
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-ink-tertiary mt-1 truncate">
+                    {group.sujetFinal?.titre_ar || group.sujetFinal?.titre_en || 'No subject'}
+                  </p>
+                  <p className="text-xs text-ink-muted mt-0.5">
+                    {group.groupMembers?.length || 0} members
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Jury form */}
+          {selectedGroup ? (
+            <div className="rounded-2xl border border-edge bg-surface p-6 shadow-card space-y-5">
+              <div>
+                <h3 className="text-base font-bold text-ink">
+                  {selectedGroup.nom_ar || selectedGroup.nom_en || `Group #${selectedGroup.id}`}
+                </h3>
+                <p className="text-xs text-ink-tertiary mt-0.5">
+                  Subject: {selectedGroup.sujetFinal?.titre_ar || selectedGroup.sujetFinal?.titre_en || 'None'}
+                </p>
+              </div>
+
+              {error && <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">{error}</div>}
+              {success && <div className="rounded-xl border border-success/30 bg-success/5 px-4 py-2.5 text-sm text-success">{success}</div>}
+
+              {/* President */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-ink-secondary uppercase">President (Required) *</label>
+                <select
+                  value={formData.presidentId}
+                  onChange={e => setFormData(p => ({ ...p, presidentId: e.target.value }))}
+                  className="w-full rounded-xl border border-edge-subtle bg-control-bg px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2"
+                >
+                  <option value="">Select president...</option>
+                  {teachers.map(t => (
+                    <option key={t.id} value={t.enseignant?.id || t.id}>{getTeacherLabel(t)}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Members */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-ink-secondary uppercase">Jury Members</label>
+                  <button type="button" onClick={handleAddMember} className="text-xs font-semibold text-brand hover:text-brand-hover">+ Add Member</button>
+                </div>
+                {formData.members.map((m, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <select
+                      value={m.enseignantId}
+                      onChange={e => {
+                        const members = [...formData.members];
+                        members[idx] = { ...members[idx], enseignantId: e.target.value };
+                        setFormData(p => ({ ...p, members }));
+                      }}
+                      className="flex-1 rounded-xl border border-edge-subtle bg-control-bg px-2.5 py-2 text-sm text-ink outline-none focus:border-brand"
+                    >
+                      <option value="">Select teacher...</option>
+                      {teachers.map(t => (
+                        <option key={t.id} value={t.enseignant?.id || t.id}>{getTeacherLabel(t)}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={m.role}
+                      onChange={e => {
+                        const members = [...formData.members];
+                        members[idx] = { ...members[idx], role: e.target.value };
+                        setFormData(p => ({ ...p, members }));
+                      }}
+                      className="w-36 rounded-xl border border-edge-subtle bg-control-bg px-2.5 py-2 text-sm text-ink outline-none focus:border-brand"
+                    >
+                      <option value="examinateur">Examinateur</option>
+                      <option value="rapporteur">Rapporteur</option>
+                    </select>
+                    <button type="button" onClick={() => handleRemoveMember(idx)} className="text-danger p-1 hover:bg-danger/10 rounded-lg">
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Date / Time / Room */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-ink-secondary uppercase">Defense Date</label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
+                    className="w-full rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-ink-secondary uppercase">Time</label>
+                  <input
+                    type="time"
+                    value={formData.time}
+                    onChange={e => setFormData(p => ({ ...p, time: e.target.value }))}
+                    className="w-full rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-ink-secondary uppercase">Room</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Amphi A"
+                    value={formData.room}
+                    onChange={e => setFormData(p => ({ ...p, room: e.target.value }))}
+                    className="w-full rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2"
+                  />
+                </div>
+              </div>
+
+              {/* Save */}
+              <div className="flex justify-end gap-3 pt-3 border-t border-edge-subtle">
+                <button
+                  type="button"
+                  onClick={() => setSelectedGroup(null)}
+                  className="px-4 py-2 text-sm font-medium rounded-xl border border-edge bg-surface text-ink hover:bg-surface-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || !formData.presidentId}
+                  className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl bg-brand text-surface hover:bg-brand-hover disabled:opacity-50 transition-all"
+                >
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {saving ? 'Saving...' : 'Save Jury & Schedule'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-edge bg-surface p-8 flex items-center justify-center">
+              <p className="text-sm text-ink-tertiary">← Select a group to manage its jury</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -309,7 +686,7 @@ export default function AdminPFE({
   const renderCenter = () => {
     if (activeTab === 'subjects') return <AdminValidationQueue subjects={subjects} loading={loading} error={error} onValidate={handleValidate} onReject={handleReject} onRetry={retryActiveTab} />;
     if (activeTab === 'groups') return <AdminGroupsOverview groups={groups} loading={loading} error={error} onRetry={retryActiveTab} />;
-    if (activeTab === 'defense') return <DefensePanel />;
+    if (activeTab === 'defense') return <DefensePanel groups={groups} />;
     if (activeTab === 'config') return <PFEConfigCard />;
     return null;
   };

@@ -15,4 +15,15 @@ router.get('/groupes/en-attente', (req, res) => adminController.getGroupesEnAtte
 router.put('/config/proposition-sujets', (req, res) => adminController.togglePropositionSujets(req, res));
 router.get('/config/proposition-sujets', (req, res) => adminController.getPropositionStatus(req, res));
 
+// Jury Composition (Refactored)
+const { composeJuryHandler } = require('./pfe-jury-admin.controller');
+const { requireAuth, requireRole } = require('../../middlewares/auth.middleware');
+
+router.put(
+  '/groups/:groupId/jury/compose',
+  requireAuth,
+  requireRole(['admin']),
+  (req, res) => composeJuryHandler(req, res)
+);
+
 module.exports = router;
