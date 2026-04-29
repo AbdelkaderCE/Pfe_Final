@@ -792,11 +792,13 @@ export const affectationAPI = {
   getCampaignVoeux: (id) =>
     request(`/api/v1/affectation/campaigns/${id}/voeux`),
 
-  getCampaignResults: (id) =>
-    request(`/api/v1/affectation/campaigns/${id}/results`),
+  getCampaignResults: (id) => request(`/api/v1/affectation/campaigns/${id}/results`),
+  getCampaignStats: (id) => request(`/api/v1/affectation/campaigns/${id}/stats`),
 
-  getCampaignStats: (id) =>
-    request(`/api/v1/affectation/campaigns/${id}/stats`),
+  exportCampaignResultsPdf: (id) => {
+    // Return the URL directly for browser download
+    return `${API_BASE}/api/v1/affectation/campaigns/${id}/export/pdf`;
+  },
 
   // ── Specialite-campaign links ──────────────────────────────
   linkSpecialite: (campaignId, payload) =>

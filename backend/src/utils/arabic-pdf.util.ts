@@ -20,12 +20,14 @@ const FONTS_DIR = path.join(process.cwd(), "assets", "fonts");
 export const AMIRI_REGULAR = path.join(FONTS_DIR, "Amiri-Regular.ttf");
 export const AMIRI_BOLD    = path.join(FONTS_DIR, "Amiri-Bold.ttf");
 const NOTO_ARABIC          = path.join(FONTS_DIR, "NotoSansArabic-Regular.ttf");
+const WIN_ARIAL            = "C:\\Windows\\Fonts\\arial.ttf";
+const WIN_TRAD_ARABIC      = "C:\\Windows\\Fonts\\trado.ttf";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Returns true when the font file exists on disk. */
 export const arabicFontAvailable = (): boolean =>
-  fs.existsSync(AMIRI_REGULAR) || fs.existsSync(NOTO_ARABIC);
+  fs.existsSync(AMIRI_REGULAR) || fs.existsSync(NOTO_ARABIC) || fs.existsSync(WIN_ARIAL) || fs.existsSync(WIN_TRAD_ARABIC);
 
 /** Returns true when the string contains Arabic characters. */
 export const isArabic = (text: string): boolean =>
@@ -36,12 +38,18 @@ export const isArabic = (text: string): boolean =>
  * Call this once before drawing any Arabic text.
  */
 export const registerArabicFonts = (doc: PDFKit.PDFDocument): void => {
-  const regular = fs.existsSync(AMIRI_REGULAR) ? AMIRI_REGULAR : NOTO_ARABIC;
-  const bold    = fs.existsSync(AMIRI_BOLD)    ? AMIRI_BOLD    : regular;
+  let regular = fs.existsSync(AMIRI_REGULAR) ? AMIRI_REGULAR : (fs.existsSync(NOTO_ARABIC) ? NOTO_ARABIC : null);
+  let bold    = fs.existsSync(AMIRI_BOLD)    ? AMIRI_BOLD    : regular;
 
-  if (fs.existsSync(regular)) {
+  if (!regular && process.platform === "win32") {
+    if (fs.existsSync(WIN_TRAD_ARABIC)) regular = WIN_TRAD_ARABIC;
+    else if (fs.existsSync(WIN_ARIAL)) regular = WIN_ARIAL;
+    bold = regular;
+  }
+
+  if (regular && fs.existsSync(regular)) {
     doc.registerFont("Arabic",      regular);
-    doc.registerFont("Arabic-Bold", bold);
+    doc.registerFont("Arabic-Bold", bold || regular);
   }
 };
 

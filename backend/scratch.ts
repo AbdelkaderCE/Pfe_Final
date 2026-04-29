@@ -1,29 +1,10 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-async function main() {
-  const etudiants = await prisma.etudiant.findMany({
-    include: {
-      user: true,
-    },
-    orderBy: {
-      moyenne: 'desc'
-    }
-  });
-
-  console.log("Students and their Averages:");
-  console.log("----------------------------");
-  etudiants.forEach(e => {
-    console.log(`${e.user.nom} ${e.user.prenom} (${e.user.email}): ${e.moyenne}`);
-  });
+console.log('CWD:', process.cwd());
+console.log('__dirname:', __dirname);
+const path = require('path');
+const fs = require('fs');
+const fontsDir = path.join(process.cwd(), "assets", "fonts");
+console.log('Fonts Dir:', fontsDir);
+console.log('Exists:', fs.existsSync(fontsDir));
+if (fs.existsSync(fontsDir)) {
+  console.log('Files:', fs.readdirSync(fontsDir));
 }
-
-main()
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });

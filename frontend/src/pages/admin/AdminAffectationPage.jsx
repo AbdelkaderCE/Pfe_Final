@@ -13,6 +13,7 @@ import {
   Trash2,
   Unlock,
   Users,
+  Download,
   X,
   XCircle,
 } from 'lucide-react';
@@ -701,6 +702,38 @@ export default function AdminAffectationPage() {
   const [success, setSuccess] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
 
+  const handleExportPdf = async () => {
+    if (!selectedId) return;
+    setBusyAction('export-pdf');
+    try {
+      const url = affectationAPI.exportCampaignResultsPdf(selectedId);
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${sessionStorage.getItem('pfe_access_token') || ''}`
+        }
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Export failed: ${res.status} ${res.statusText}`);
+      }
+
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `affectation-results-${selectedId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      setSuccess('PDF exported successfully.');
+    } catch (err) {
+      setError(err?.message || 'Failed to export PDF.');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   const selectCampaign = useCallback((id) => {
     setSelectedId(id);
     setDeleteConfirming(false);
@@ -1081,14 +1114,29 @@ export default function AdminAffectationPage() {
               <section className="rounded-2xl border border-edge bg-surface p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-semibold text-ink">Results</h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowImportModal(true)}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand/40 hover:text-brand transition-all"
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                    Import Averages
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleExportPdf}
+                      disabled={!results || results.length === 0 || busyAction === 'export-pdf'}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand/40 hover:text-brand transition-all disabled:opacity-50"
+                    >
+                      {busyAction === 'export-pdf' ? (
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Download className="h-3 w-3" />
+                      )}
+                      {busyAction === 'export-pdf' ? 'Exporting...' : 'Export PDF'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowImportModal(true)}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand/40 hover:text-brand transition-all"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Import Averages
+                    </button>
+                  </div>
                 </div>
                 <p className="mt-1 text-xs text-ink-tertiary">
                   The algorithm assigns each student to their highest-ordre specialite that still has quota,

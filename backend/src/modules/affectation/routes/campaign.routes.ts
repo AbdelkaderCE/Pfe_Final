@@ -21,6 +21,7 @@ import {
   getCampaignStatsHandler,
   listCampaignVoeuxHandler,
 } from "../controllers/voeu.controller";
+import { exportCampaignResultsPdfHandler } from "../controllers/results.controller";
 
 const router = Router();
 
@@ -46,6 +47,7 @@ router.post("/:id/run", requireAuth, requireRole(adminRoles), runAlgorithmHandle
 router.get("/:id/voeux", requireAuth, requireRole(readRoles), listCampaignVoeuxHandler);
 router.get("/:id/results", requireAuth, requireRole(readRoles), getCampaignResultsHandler);
 router.get("/:id/stats", requireAuth, requireRole(readRoles), getCampaignStatsHandler);
+router.get("/:id/export/pdf", requireAuth, requireRole(adminRoles), exportCampaignResultsPdfHandler);
 
 export const specialiteLinkRouter = Router();
 specialiteLinkRouter.patch(
