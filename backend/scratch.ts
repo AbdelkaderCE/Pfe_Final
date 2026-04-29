@@ -1,16 +1,29 @@
 import { PrismaClient } from '@prisma/client';
+
 const prisma = new PrismaClient();
 
 async function main() {
-  const user = await prisma.user.findUnique({
-    where: { email: 'admin@univ-tiaret.dz' },
+  const etudiants = await prisma.etudiant.findMany({
     include: {
-      userRoles: {
-        include: { role: true }
-      }
+      user: true,
+    },
+    orderBy: {
+      moyenne: 'desc'
     }
   });
-  console.log(JSON.stringify(user, null, 2));
+
+  console.log("Students and their Averages:");
+  console.log("----------------------------");
+  etudiants.forEach(e => {
+    console.log(`${e.user.nom} ${e.user.prenom} (${e.user.email}): ${e.moyenne}`);
+  });
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
+main()
+  .catch(e => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
