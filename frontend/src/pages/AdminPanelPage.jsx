@@ -27,7 +27,7 @@ const MAIN_SECTIONS = [
   { key: 'students',            title: 'Student Management',    to: '/dashboard/admin/users',                  icon: GraduationCap, hint: 'Students, promos, history' },
   { key: 'teachers',            title: 'Teacher Management',    to: '/dashboard/admin/users',                  icon: UserCog,       hint: 'Faculty assignments' },
   { key: 'academic-assignment', title: 'Academic Assignment',   to: '/dashboard/admin/academic/assignments',   icon: Settings2,     hint: 'Modules ↔ teachers ↔ promos' },
-  { key: 'pfe-management',      title: 'PFE Management',        to: '/dashboard/admin/pfe-management',         icon: BookOpen,      hint: 'Subjects, groups, jury' },
+  { key: 'pfe-workspace',       title: 'PFE Workspace',         to: '/dashboard/pfe-workspace',               icon: BookOpen,      hint: 'Unified PFE hub' },
   { key: 'affectation',         title: 'Affectation Campaigns', to: '/dashboard/admin/affectation',            icon: Shuffle,       hint: 'Specialty assignment cycles' },
   { key: 'disciplinary',        title: 'Disciplinary Council',  to: '/dashboard/disciplinary',                 icon: ShieldAlert,   hint: 'Cases and sanctions' },
   { key: 'analytics',           title: 'System Analytics',      to: '/dashboard/admin/analytics',              icon: BarChart3,     hint: 'Charts and per-user drill-down' },
@@ -70,8 +70,8 @@ const ADMIN_TOUR_STEPS = [
   },
   {
     Icon: BookOpen,
-    title: 'PFE Management',
-    body: 'Subjects, group bulk-creation, and jury composition all live under one screen. Use it whenever you compose a defense panel — alerts go out automatically.',
+    title: 'PFE Workspace',
+    body: 'Subjects, groups, jury composition, and defense scheduling now live in a single PFE workspace with role-based views and shared data.',
   },
   {
     Icon: BarChart3,

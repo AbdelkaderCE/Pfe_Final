@@ -1,8 +1,12 @@
 const express = require('express');
 const { SujetController } = require('./sujet.controller');
 const { AdminPfeController } = require('./adminPfe.controller');
+const { optionalAuth } = require('../../middlewares/auth.middleware');
 
 const router = express.Router();
+
+// Attach req.user when a token is provided; keeps read endpoints public.
+router.use(optionalAuth);
 const sujetController = new SujetController();
 const adminController = new AdminPfeController();
 

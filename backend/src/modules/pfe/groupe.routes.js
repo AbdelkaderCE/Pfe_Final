@@ -1,8 +1,11 @@
 const express = require('express');
 const { GroupeController } = require('./groupe.controller');
-const { requireAuth } = require('../../middlewares/auth.middleware');
+const { requireAuth, optionalAuth } = require('../../middlewares/auth.middleware');
 
 const router = express.Router();
+
+// Attach req.user when a token is provided; keeps read endpoints public.
+router.use(optionalAuth);
 const groupeController = new GroupeController();
 
 // ─── Admin-only: manual group assembly (create group + assign members) ───

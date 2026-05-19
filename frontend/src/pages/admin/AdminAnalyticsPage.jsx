@@ -326,7 +326,7 @@ export default function AdminAnalyticsPage() {
     const userRolesData = [
       { name: 'Students', value: data.users.students, fill: '#2563eb' },
       { name: 'Teachers', value: data.users.teachers, fill: '#16a34a' },
-      { name: 'Other',    value: Math.max(0, data.users.total - data.users.students - data.users.teachers), fill: '#7c3aed' },
+      { name: 'Admins',   value: data.users.admins ?? 0, fill: '#0ea5e9' },
     ].filter((d) => d.value > 0);
 
     const userStatusData = [
@@ -411,7 +411,7 @@ export default function AdminAnalyticsPage() {
       { name: 'ONLINE', value: typeCounts.online, fill: TEACHING_TYPE_FILL.online },
     ].filter((d) => d.value > 0);
 
-    // Top 10 teachers by workload (rest collapse into "Others") so the chart
+    // Top 10 teachers by workload (rest collapse into a single bucket) so the chart
     // stays readable even with 100+ teachers in the system.
     const allTeacherEntries = Array.from(teacherCounts.entries())
       .map(([name, value]) => ({ name, value }))
@@ -419,7 +419,7 @@ export default function AdminAnalyticsPage() {
     const topTeachers = allTeacherEntries.slice(0, 10);
     const restTotal = allTeacherEntries.slice(10).reduce((sum, e) => sum + e.value, 0);
     const teacherWorkload = restTotal > 0
-      ? [...topTeachers, { name: `Others (${allTeacherEntries.length - 10})`, value: restTotal }]
+      ? [...topTeachers, { name: `Remaining (${allTeacherEntries.length - 10})`, value: restTotal }]
       : topTeachers;
 
     return {
@@ -588,6 +588,13 @@ export default function AdminAnalyticsPage() {
             accent="brand"
           />
           <StatCard
+            title="Admins"
+            value={data.users.admins ?? 0}
+            subtitle="System owners"
+            icon={ShieldAlert}
+            accent="warning"
+          />
+          <StatCard
             title="Students"
             value={data.users.students}
             subtitle="Enrolled accounts"
@@ -600,13 +607,6 @@ export default function AdminAnalyticsPage() {
             subtitle="Active faculty"
             icon={UserCog}
             accent="ink"
-          />
-          <StatCard
-            title="Suspended"
-            value={data.users.suspended}
-            subtitle={`${data.users.inactive} inactive`}
-            icon={ShieldAlert}
-            accent="warning"
           />
         </div>
       </section>

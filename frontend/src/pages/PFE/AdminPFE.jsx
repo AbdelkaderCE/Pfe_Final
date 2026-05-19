@@ -1,20 +1,39 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  FileText, Users, CalendarDays, Settings2, CheckCircle2, XCircle, Plus, Filter, Loader2, Pencil,
+  FileText,
+  Users,
+  CalendarDays,
+  Settings2,
+  CheckCircle2,
+  XCircle,
+  Plus,
+  Filter,
+  Loader2,
+  Pencil,
+  LayoutDashboard,
+  Gavel,
+  BarChart3,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
 } from 'lucide-react';
 import {
   SectionHeader, Shimmer, EmptyState, ErrorBanner, CapacityBar, StatusBadge,
-  getUserDisplayName, LeftNav, PageHeader, SUBJECT_STATUS, normalizeApiError, FilterPills,
+  getUserDisplayName, LeftNav, PageHeader, SUBJECT_STATUS, normalizeApiError, FilterPills, StatCard,
   EditSubjectModal, EditGroupModal,
 } from './SharedPFEUI';
 import request from '../../services/api';
 import PFEConfigCard from '../../components/pfe/admin/PFEConfigCard';
 
 const ADMIN_TABS = [
-  { id: 'subjects', label: 'Validation Queue', Icon: FileText, hint: 'Review proposals' },
+  { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard, hint: 'Overview' },
+  { id: 'subjects', label: 'Subjects', Icon: FileText, hint: 'Review proposals' },
   { id: 'groups', label: 'Groups', Icon: Users, hint: 'Manage PFE groups' },
-  { id: 'defense', label: 'Defense Plan', Icon: CalendarDays, hint: 'Schedule defenses' },
+  { id: 'jury', label: 'Jury', Icon: Gavel, hint: 'Compose panels' },
+  { id: 'defense', label: 'Defenses', Icon: CalendarDays, hint: 'Defense schedule' },
   { id: 'config', label: 'Configuration', Icon: Settings2, hint: 'System settings' },
+  { id: 'analytics', label: 'Analytics', Icon: BarChart3, hint: 'PFE insights' },
 ];
 
 function SkeletonList({ count = 3 }) {
@@ -27,6 +46,124 @@ function SkeletonList({ count = 3 }) {
            <Shimmer className="h-4 w-1/2" />
         </div>
       ))}
+    </div>
+  );
+}
+
+function AdminDashboardPanel({ subjects, groups, loading }) {
+  const subjectList = Array.isArray(subjects) ? subjects : [];
+  const groupList = Array.isArray(groups) ? groups : [];
+  const pendingSubjects = subjectList.filter((s) => s.status === 'propose').length;
+  const scheduledDefenses = groupList.filter((g) => g.dateSoutenance).length;
+  const juryAssigned = groupList.filter((g) => (g.pfeJury || []).length > 0).length;
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        eyebrow="Unified PFE"
+        title="Admin Dashboard"
+        subtitle="Cross-module KPIs for subjects, groups, and defenses."
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <StatCard
+          icon={FileText}
+          label="Total subjects"
+          value={subjectList.length}
+          colorCls="bg-brand/10 text-brand"
+          loading={loading}
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="Pending approval"
+          value={pendingSubjects}
+          colorCls="bg-warning/10 text-warning"
+          loading={loading}
+        />
+        <StatCard
+          icon={Users}
+          label="Total groups"
+          value={groupList.length}
+          colorCls="bg-success/10 text-success"
+          loading={loading}
+        />
+        <StatCard
+          icon={Gavel}
+          label="Jury assigned"
+          value={juryAssigned}
+          colorCls="bg-surface-200 text-ink"
+          loading={loading}
+        />
+        <StatCard
+          icon={CalendarDays}
+          label="Defenses scheduled"
+          value={scheduledDefenses}
+          colorCls="bg-brand/5 text-brand"
+          loading={loading}
+        />
+      </div>
+    </div>
+  );
+}
+
+function AdminAnalyticsPanel({ subjects, groups }) {
+  const subjectList = Array.isArray(subjects) ? subjects : [];
+  const groupList = Array.isArray(groups) ? groups : [];
+
+  const subjectStatus = useMemo(() => {
+    const counts = new Map();
+    subjectList.forEach((subject) => {
+      const key = String(subject?.status || 'unknown');
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [subjectList]);
+
+  const groupStatus = useMemo(() => {
+    const counts = { pending: 0, scheduled: 0, completed: 0 };
+    groupList.forEach((group) => {
+      const status = resolveGroupStatus(group);
+      counts[status] += 1;
+    });
+    return counts;
+  }, [groupList]);
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        eyebrow="PFE Analytics"
+        title="Status breakdown"
+        subtitle="Quick insight into subject and defense states."
+      />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-edge bg-surface p-5 shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Subjects by status</p>
+          <div className="mt-3 space-y-2 text-sm">
+            {subjectStatus.length === 0 ? (
+              <span className="text-ink-tertiary">No subjects found.</span>
+            ) : (
+              subjectStatus.map((row) => (
+                <div key={row.label} className="flex items-center justify-between">
+                  <span className="text-ink-secondary">{row.label}</span>
+                  <span className="font-semibold text-ink">{row.value}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-edge bg-surface p-5 shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Groups by defense status</p>
+          <div className="mt-3 space-y-2 text-sm">
+            {Object.entries(groupStatus).map(([key, value]) => (
+              <div key={key} className="flex items-center justify-between">
+                <span className="text-ink-secondary">{GROUP_STATUS_CONFIG[key]?.label || key}</span>
+                <span className="font-semibold text-ink">{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -238,28 +375,110 @@ function GroupDetailsModal({ group, onClose }) {
   );
 }
 
+const GROUP_STATUS_CONFIG = {
+  pending: { label: 'Pending', cls: 'bg-warning/10 text-warning border-warning/20' },
+  scheduled: { label: 'Scheduled', cls: 'bg-brand/10 text-brand border-brand/20' },
+  completed: { label: 'Completed', cls: 'bg-success/10 text-success border-success/20' },
+};
+
+const resolveGroupStatus = (group) => {
+  if (group?.validationFinale || group?.note != null) return 'completed';
+  if (group?.dateSoutenance) return 'scheduled';
+  return 'pending';
+};
+
+const groupTitle = (group) => group?.nom_ar || group?.nom_en || `Group #${group?.id}`;
+const subjectTitle = (subject) => subject?.titre_ar || subject?.titre_en || `Subject #${subject?.id}`;
+const promoLabel = (promo) => promo?.nom_ar || promo?.nom_en || promo?.nom || (promo?.id ? `Promo ${promo.id}` : '—');
+
+const formatDefenseDate = (value) => {
+  if (!value) return { date: '—', time: '' };
+  const dateObj = new Date(value);
+  if (Number.isNaN(dateObj.getTime())) return { date: '—', time: '' };
+  return {
+    date: dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    time: dateObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+  };
+};
+
 function AdminGroupsOverview({ groups, loading, error, onRetry }) {
   const [showModal, setShowModal] = useState(false);
-  const [selectedGroupDetails, setSelectedGroupDetails] = useState(null);
   const [editingGroup, setEditingGroup] = useState(null);
   const [formData, setFormData] = useState({ nom_ar: '', nom_en: '', coEncadrantId: '', members: [{ etudiantId: '', role: 'chef_groupe' }] });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [users, setUsers] = useState({ teachers: [], students: [] });
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [promoFilter, setPromoFilter] = useState('all');
+  const [expandedIds, setExpandedIds] = useState(new Set());
 
   const list = Array.isArray(groups) ? groups : [];
-  
+
+  const statusCounts = useMemo(() => {
+    const counts = { all: list.length, pending: 0, scheduled: 0, completed: 0 };
+    list.forEach((group) => {
+      const status = resolveGroupStatus(group);
+      counts[status] += 1;
+    });
+    return counts;
+  }, [list]);
+
+  const promoOptions = useMemo(() => {
+    const map = new Map();
+    list.forEach((group) => {
+      const promo = group?.sujetFinal?.promo || null;
+      if (promo?.id && !map.has(String(promo.id))) {
+        map.set(String(promo.id), promo);
+      }
+    });
+    return Array.from(map.values());
+  }, [list]);
+
+  const filteredGroups = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return list.filter((group) => {
+      const status = resolveGroupStatus(group);
+      if (statusFilter !== 'all' && status !== statusFilter) return false;
+      if (promoFilter !== 'all') {
+        const groupPromoId = group?.sujetFinal?.promo?.id;
+        if (!groupPromoId || String(groupPromoId) !== promoFilter) return false;
+      }
+
+      if (!term) return true;
+
+      const subject = group?.sujetFinal;
+      const supervisor = group?.coEncadrant?.user;
+      const memberNames = (group?.groupMembers || [])
+        .map((m) => getUserDisplayName(m?.etudiant?.user))
+        .join(' ');
+
+      const haystack = [
+        groupTitle(group),
+        subjectTitle(subject),
+        getUserDisplayName(supervisor),
+        promoLabel(subject?.promo),
+        memberNames,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(term);
+    });
+  }, [list, promoFilter, search, statusFilter]);
+
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
       const [tRes, sRes] = await Promise.all([
         request('/api/v1/admin/users?role=enseignant&limit=1000'),
-        request('/api/v1/admin/users?role=etudiant&limit=1000')
+        request('/api/v1/admin/users?role=etudiant&limit=1000'),
       ]);
       setUsers({
         teachers: tRes?.data?.users || tRes?.data || [],
-        students: sRes?.data?.users || sRes?.data || []
+        students: sRes?.data?.users || sRes?.data || [],
       });
     } catch (err) {
       console.error(err);
@@ -270,7 +489,7 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
 
   const handleOpenModal = () => { setShowModal(true); fetchUsers(); };
   const handleCloseModal = () => { setShowModal(false); setFormData({ nom_ar: '', nom_en: '', coEncadrantId: '', members: [{ etudiantId: '', role: 'chef_groupe' }] }); setSubmitError(null); };
-  
+
   const handleAddMember = () => { if (formData.members.length < 3) setFormData(p => ({ ...p, members: [...p.members, { etudiantId: '', role: 'membre' }] })); };
   const handleRemoveMember = (idx) => setFormData(p => ({ ...p, members: p.members.filter((_, i) => i !== idx) }));
   const handleMemberChange = (idx, field, value) => setFormData(p => {
@@ -291,74 +510,207 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
     } catch (err) { setSubmitError(err.message || 'Failed to create group'); } finally { setSubmitting(false); }
   };
 
+  const toggleExpanded = (groupId) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
+
   return (
     <div className="space-y-4">
-      <SectionHeader 
-        eyebrow="PFE Groups" 
-        title="All Groups" 
+      <SectionHeader
+        eyebrow="PFE Groups"
+        title="All Groups"
         subtitle={`${list.length} PFE group${list.length !== 1 ? 's' : ''} in the system`}
-        action={<button type="button" onClick={handleOpenModal} className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-surface hover:bg-brand-hover"><Plus className="w-4 h-4" /> Create Group</button>}
+        action={(
+          <button type="button" onClick={handleOpenModal} className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-surface hover:bg-brand-hover">
+            <Plus className="w-4 h-4" /> Create Group
+          </button>
+        )}
       />
 
-      {loading ? <SkeletonList count={2} /> : error ? <ErrorBanner error={error} onRetry={onRetry} /> : list.length === 0 ? (
+      {loading ? (
+        <SkeletonList count={2} />
+      ) : error ? (
+        <ErrorBanner error={error} onRetry={onRetry} />
+      ) : list.length === 0 ? (
         <EmptyState icon={Users} title="No groups found" hint="Groups will appear here once formed." />
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {list.map((group) => {
-              const subject = group.sujetFinal;
-              const memberCount = group.groupMembers?.length || 0;
-              return (
-                <div
-                  key={group.id}
-                  onClick={() => setSelectedGroupDetails(group)}
-                  className="group rounded-2xl border border-edge bg-surface p-5 shadow-card hover:shadow-card-hover hover:border-brand/40 transition-all cursor-pointer"
-                >
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-ink group-hover:text-brand transition-colors">{group.nom_ar || group.nom_en || `Group #${group.id}`}</h3>
-                      <p className="mt-0.5 text-xs text-ink-tertiary">{memberCount} member{memberCount !== 1 ? 's' : ''}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setEditingGroup(group); }}
-                        className="inline-flex items-center gap-1 rounded-lg border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:bg-surface-200"
-                        title="Edit group"
-                      >
-                        <Pencil className="w-3 h-3" /> Edit
-                      </button>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-                        <span className="w-1.5 h-1.5 rounded-full bg-success" /> Active
-                      </span>
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-surface-200/60 px-3 py-2.5 mb-3 group-hover:bg-brand/5 transition-colors">
-                    <p className="text-xs font-medium text-ink-secondary mb-0.5">Subject</p>
-                    <p className="text-sm text-ink font-medium truncate">{subject?.titre_ar || subject?.titre_en || 'No subject assigned'}</p>
-                    <p className="text-xs text-ink-tertiary mt-0.5">{getUserDisplayName(subject?.enseignant?.user)}</p>
-                  </div>
-                  {memberCount > 0 && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        {(group.groupMembers || []).slice(0, 4).map((m, idx) => (
-                          <div key={idx} className="w-7 h-7 rounded-full bg-brand/20 border-2 border-surface flex items-center justify-center text-xs font-semibold text-brand -ml-1 first:ml-0">
-                            {(m?.etudiant?.user?.prenom?.[0] || '?').toUpperCase()}
-                          </div>
-                        ))}
-                      </div>
-                      <span className="text-[10px] font-bold text-brand opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-wider">Inspect Details →</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-edge bg-surface p-4 shadow-card">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-tertiary" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search group, subject, or member"
+                className="w-full rounded-xl border border-edge-subtle bg-control-bg pl-9 pr-3 py-2 text-sm text-ink outline-none focus:border-brand"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none"
+            >
+              <option value="all">All statuses ({statusCounts.all})</option>
+              <option value="pending">Pending ({statusCounts.pending})</option>
+              <option value="scheduled">Scheduled ({statusCounts.scheduled})</option>
+              <option value="completed">Completed ({statusCounts.completed})</option>
+            </select>
+            <select
+              value={promoFilter}
+              onChange={(event) => setPromoFilter(event.target.value)}
+              className="rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none"
+            >
+              <option value="all">All promos</option>
+              {promoOptions.map((promo) => (
+                <option key={promo.id} value={String(promo.id)}>
+                  {promoLabel(promo)}
+                </option>
+              ))}
+            </select>
           </div>
-          <GroupDetailsModal group={selectedGroupDetails} onClose={() => setSelectedGroupDetails(null)} />
+
+          <div className="overflow-x-auto rounded-2xl border border-edge bg-surface shadow-card">
+            <table className="min-w-full divide-y divide-edge text-sm">
+              <thead className="bg-surface-200 text-ink-tertiary">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Group</th>
+                  <th className="px-4 py-3 text-left font-semibold">Subject</th>
+                  <th className="px-4 py-3 text-left font-semibold">Supervisor</th>
+                  <th className="px-4 py-3 text-left font-semibold">Jury</th>
+                  <th className="px-4 py-3 text-left font-semibold">Defense</th>
+                  <th className="px-4 py-3 text-left font-semibold">Status</th>
+                  <th className="px-4 py-3 text-right font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-edge-subtle bg-surface">
+                {filteredGroups.map((group) => {
+                  const subject = group?.sujetFinal;
+                  const supervisor = group?.coEncadrant?.user || subject?.enseignant?.user;
+                  const juryEntries = Array.isArray(group?.pfeJury) ? group.pfeJury : [];
+                  const president = juryEntries.find((j) => j.role === 'president');
+                  const members = juryEntries.filter((j) => j.role !== 'president');
+                  const statusKey = resolveGroupStatus(group);
+                  const statusCfg = GROUP_STATUS_CONFIG[statusKey] || GROUP_STATUS_CONFIG.pending;
+                  const defense = formatDefenseDate(group?.dateSoutenance);
+                  const isExpanded = expandedIds.has(group.id);
+
+                  return (
+                    <React.Fragment key={group.id}>
+                      <tr className="hover:bg-surface-200/40">
+                        <td className="px-4 py-4">
+                          <div className="font-semibold text-ink">{groupTitle(group)}</div>
+                          <div className="text-xs text-ink-tertiary">{promoLabel(subject?.promo)}</div>
+                        </td>
+                        <td className="px-4 py-4 text-ink">
+                          <div className="font-medium">{subjectTitle(subject)}</div>
+                          <div className="text-xs text-ink-tertiary">{subject?.typeProjet || '—'}</div>
+                        </td>
+                        <td className="px-4 py-4 text-ink-secondary">
+                          {getUserDisplayName(supervisor)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-ink">{president ? getUserDisplayName(president.enseignant?.user) : 'Unassigned'}</div>
+                          <div className="text-xs text-ink-tertiary">Members: {members.length}</div>
+                        </td>
+                        <td className="px-4 py-4 text-ink-secondary">
+                          <div className="flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4 text-ink-tertiary" />
+                            <span>{defense.date}</span>
+                          </div>
+                          <div className="text-xs text-ink-tertiary flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5" />
+                            {group?.salleSoutenance || 'TBD'} {defense.time ? `· ${defense.time}` : ''}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusCfg.cls}`}>{statusCfg.label}</span>
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleExpanded(group.id)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:bg-surface-200"
+                            >
+                              {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                              {isExpanded ? 'Collapse' : 'Expand'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingGroup(group)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:bg-surface-200"
+                            >
+                              <Pencil className="w-3.5 h-3.5" /> Edit
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-surface-200/50">
+                          <td colSpan={7} className="px-4 py-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Members</p>
+                                <div className="mt-2 space-y-1">
+                                  {(group.groupMembers || []).length === 0 ? (
+                                    <span className="text-ink-tertiary">No members yet.</span>
+                                  ) : (
+                                    (group.groupMembers || []).map((m) => (
+                                      <div key={m.id || m.etudiantId} className="text-ink">
+                                        {getUserDisplayName(m?.etudiant?.user)} <span className="text-xs text-ink-tertiary">({m.role})</span>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Jury panel</p>
+                                <div className="mt-2 space-y-1">
+                                  {juryEntries.length === 0 ? (
+                                    <span className="text-ink-tertiary">No jury assigned.</span>
+                                  ) : (
+                                    juryEntries.map((entry) => (
+                                      <div key={entry.id} className="text-ink">
+                                        {getUserDisplayName(entry?.enseignant?.user)} <span className="text-xs text-ink-tertiary">({entry.role})</span>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Defense details</p>
+                                <div className="mt-2 text-ink-secondary">
+                                  <div>Date: {defense.date}</div>
+                                  <div>Time: {defense.time || '—'}</div>
+                                  <div>Room: {group?.salleSoutenance || 'TBD'}</div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+            {filteredGroups.length === 0 && (
+              <div className="px-4 py-8 text-center text-sm text-ink-tertiary">
+                No groups match the current filters.
+              </div>
+            )}
+          </div>
         </>
       )}
 
-      {/* Edit group modal — admin only, any group, any time */}
       {editingGroup && (
         <EditGroupModal
           group={editingGroup}
@@ -428,7 +780,7 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
   );
 }
 
-function DefensePanel({ groups }) {
+function JuryPanel({ groups }) {
   const [teachers, setTeachers] = useState([]);
   const [juryData, setJuryData] = useState({});
   const [loadingTeachers, setLoadingTeachers] = useState(false);
@@ -437,6 +789,8 @@ function DefensePanel({ groups }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const groupList = Array.isArray(groups) ? groups : [];
 
@@ -543,6 +897,50 @@ function DefensePanel({ groups }) {
 
   const getTeacherLabel = (t) => `${t.prenom || ''} ${t.nom || ''}`.trim() || t.email || `#${t.id}`;
 
+  const statusCounts = useMemo(() => {
+    const counts = { all: groupList.length, pending: 0, scheduled: 0, completed: 0 };
+    groupList.forEach((group) => {
+      const status = resolveGroupStatus(group);
+      counts[status] += 1;
+    });
+    return counts;
+  }, [groupList]);
+
+  const juryRows = useMemo(() => {
+    return groupList.map((group) => {
+      const entries = (juryData[group.id] && juryData[group.id].length)
+        ? juryData[group.id]
+        : Array.isArray(group?.pfeJury) ? group.pfeJury : [];
+      const president = entries.find((entry) => entry.role === 'president');
+      const members = entries.filter((entry) => entry.role !== 'president');
+      const defense = formatDefenseDate(group?.dateSoutenance);
+      const statusKey = resolveGroupStatus(group);
+      return { group, entries, president, members, defense, statusKey };
+    });
+  }, [groupList, juryData]);
+
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return juryRows.filter((row) => {
+      if (statusFilter !== 'all' && row.statusKey !== statusFilter) return false;
+      if (!term) return true;
+      const subject = row.group?.sujetFinal;
+      const promo = subject?.promo;
+      const memberNames = row.members.map((m) => getUserDisplayName(m?.enseignant?.user)).join(' ');
+      const haystack = [
+        groupTitle(row.group),
+        subjectTitle(subject),
+        promoLabel(promo),
+        getUserDisplayName(row.president?.enseignant?.user),
+        memberNames,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [juryRows, search, statusFilter]);
+
   return (
     <div className="space-y-4">
       <SectionHeader
@@ -554,43 +952,95 @@ function DefensePanel({ groups }) {
       {groupList.length === 0 ? (
         <EmptyState icon={CalendarDays} title="No groups found" hint="Create PFE groups first, then assign juries." />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
-          {/* Group list */}
-          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-            {groupList.map(group => {
-              const hasJury = (juryData[group.id] || []).length > 0;
-              const isSelected = selectedGroup?.id === group.id;
-              return (
-                <button
-                  key={group.id}
-                  type="button"
-                  onClick={() => openGroup(group)}
-                  className={`w-full text-left rounded-2xl border p-4 transition-all ${isSelected ? 'border-brand bg-brand/5 shadow-md' : 'border-edge bg-surface hover:bg-surface-200/50'}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-sm font-semibold text-ink truncate">{group.nom_ar || group.nom_en || `Group #${group.id}`}</h4>
-                    {hasJury ? (
-                      <span className="flex-shrink-0 inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
-                        <CheckCircle2 className="w-3 h-3" /> Jury Set
-                      </span>
-                    ) : (
-                      <span className="flex-shrink-0 inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-semibold text-warning">
-                        Pending
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-ink-tertiary mt-1 truncate">
-                    {group.sujetFinal?.titre_ar || group.sujetFinal?.titre_en || 'No subject'}
-                  </p>
-                  <p className="text-xs text-ink-muted mt-0.5">
-                    {group.groupMembers?.length || 0} members
-                  </p>
-                </button>
-              );
-            })}
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-edge bg-surface p-4 shadow-card">
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-tertiary" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search group, subject, or jury member"
+                  className="w-full rounded-xl border border-edge-subtle bg-control-bg pl-9 pr-3 py-2 text-sm text-ink outline-none focus:border-brand"
+                />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className="rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none"
+              >
+                <option value="all">All statuses ({statusCounts.all})</option>
+                <option value="pending">Pending ({statusCounts.pending})</option>
+                <option value="scheduled">Scheduled ({statusCounts.scheduled})</option>
+                <option value="completed">Completed ({statusCounts.completed})</option>
+              </select>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-edge">
+              <table className="min-w-full divide-y divide-edge text-sm">
+                <thead className="bg-surface-200 text-ink-tertiary">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Group</th>
+                    <th className="px-4 py-3 text-left font-semibold">Subject</th>
+                    <th className="px-4 py-3 text-left font-semibold">President</th>
+                    <th className="px-4 py-3 text-left font-semibold">Members</th>
+                    <th className="px-4 py-3 text-left font-semibold">Date</th>
+                    <th className="px-4 py-3 text-left font-semibold">Room</th>
+                    <th className="px-4 py-3 text-left font-semibold">Status</th>
+                    <th className="px-4 py-3 text-right font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-edge-subtle bg-surface">
+                  {filteredRows.map((row) => {
+                    const subject = row.group?.sujetFinal;
+                    const statusCfg = GROUP_STATUS_CONFIG[row.statusKey] || GROUP_STATUS_CONFIG.pending;
+                    return (
+                      <tr key={row.group.id} className="hover:bg-surface-200/40">
+                        <td className="px-4 py-4">
+                          <div className="font-semibold text-ink">{groupTitle(row.group)}</div>
+                          <div className="text-xs text-ink-tertiary">{promoLabel(subject?.promo)}</div>
+                        </td>
+                        <td className="px-4 py-4 text-ink">{subjectTitle(subject)}</td>
+                        <td className="px-4 py-4 text-ink-secondary">
+                          {row.president ? getUserDisplayName(row.president.enseignant?.user) : '—'}
+                        </td>
+                        <td className="px-4 py-4 text-ink-secondary">
+                          {row.members.length > 0
+                            ? row.members.map((m) => getUserDisplayName(m?.enseignant?.user)).join(', ')
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-4 text-ink-secondary">
+                          {row.defense.date}
+                        </td>
+                        <td className="px-4 py-4 text-ink-secondary">
+                          {row.group?.salleSoutenance || 'TBD'}
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusCfg.cls}`}>{statusCfg.label}</span>
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => openGroup(row.group)}
+                            disabled={loadingTeachers}
+                            className="inline-flex items-center gap-1 rounded-lg border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:bg-surface-200 disabled:opacity-50"
+                          >
+                            <Gavel className="h-3.5 w-3.5" /> Compose
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {filteredRows.length === 0 && (
+                <div className="px-4 py-8 text-center text-sm text-ink-tertiary">
+                  No juries match the current filters.
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Jury form */}
           {selectedGroup ? (
             <div className="rounded-2xl border border-edge bg-surface p-6 shadow-card space-y-5">
               <div>
@@ -605,7 +1055,6 @@ function DefensePanel({ groups }) {
               {error && <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">{error}</div>}
               {success && <div className="rounded-xl border border-success/30 bg-success/5 px-4 py-2.5 text-sm text-success">{success}</div>}
 
-              {/* President */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-ink-secondary uppercase">President (Required) *</label>
                 <select
@@ -620,7 +1069,6 @@ function DefensePanel({ groups }) {
                 </select>
               </div>
 
-              {/* Members */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-ink-secondary uppercase">Jury Members</label>
@@ -661,7 +1109,6 @@ function DefensePanel({ groups }) {
                 ))}
               </div>
 
-              {/* Date / Time / Room — all required so the schedule is always set */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-semibold text-ink-secondary uppercase">
@@ -702,7 +1149,6 @@ function DefensePanel({ groups }) {
                 </div>
               </div>
 
-              {/* Save */}
               <div className="flex justify-end gap-3 pt-3 border-t border-edge-subtle">
                 <button
                   type="button"
@@ -731,9 +1177,70 @@ function DefensePanel({ groups }) {
             </div>
           ) : (
             <div className="rounded-2xl border border-edge bg-surface p-8 flex items-center justify-center">
-              <p className="text-sm text-ink-tertiary">← Select a group to manage its jury</p>
+              <p className="text-sm text-ink-tertiary">Select a group to compose its jury.</p>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DefenseSchedulePanel({ groups }) {
+  const list = Array.isArray(groups) ? groups : [];
+  const rows = useMemo(() => {
+    return list
+      .map((group) => {
+        const defense = formatDefenseDate(group?.dateSoutenance);
+        return { group, defense, statusKey: resolveGroupStatus(group) };
+      })
+      .sort((a, b) => {
+        const aDate = a.group?.dateSoutenance ? new Date(a.group.dateSoutenance).getTime() : Infinity;
+        const bDate = b.group?.dateSoutenance ? new Date(b.group.dateSoutenance).getTime() : Infinity;
+        return aDate - bDate;
+      });
+  }, [list]);
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        eyebrow="Defense Planning"
+        title="Defense Schedule"
+        subtitle="Upcoming and completed defenses across all PFE groups."
+      />
+
+      {rows.length === 0 ? (
+        <EmptyState icon={CalendarDays} title="No defenses scheduled" hint="Assign juries and set dates to populate the schedule." />
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-edge bg-surface shadow-card">
+          <table className="min-w-full divide-y divide-edge text-sm">
+            <thead className="bg-surface-200 text-ink-tertiary">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold">Group</th>
+                <th className="px-4 py-3 text-left font-semibold">Subject</th>
+                <th className="px-4 py-3 text-left font-semibold">Date</th>
+                <th className="px-4 py-3 text-left font-semibold">Room</th>
+                <th className="px-4 py-3 text-left font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-edge-subtle bg-surface">
+              {rows.map((row) => {
+                const subject = row.group?.sujetFinal;
+                const statusCfg = GROUP_STATUS_CONFIG[row.statusKey] || GROUP_STATUS_CONFIG.pending;
+                return (
+                  <tr key={row.group.id} className="hover:bg-surface-200/40">
+                    <td className="px-4 py-4 text-ink font-semibold">{groupTitle(row.group)}</td>
+                    <td className="px-4 py-4 text-ink-secondary">{subjectTitle(subject)}</td>
+                    <td className="px-4 py-4 text-ink-secondary">{row.defense.date} {row.defense.time ? `· ${row.defense.time}` : ''}</td>
+                    <td className="px-4 py-4 text-ink-secondary">{row.group?.salleSoutenance || 'TBD'}</td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusCfg.cls}`}>{statusCfg.label}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -753,16 +1260,20 @@ export default function AdminPFE({
   handleReject,
 }) {
   const renderCenter = () => {
+    if (activeTab === 'dashboard') return <AdminDashboardPanel subjects={subjects} groups={groups} loading={loading} />;
     if (activeTab === 'subjects') return <AdminValidationQueue subjects={subjects} loading={loading} error={error} onValidate={handleValidate} onReject={handleReject} onRetry={retryActiveTab} />;
     if (activeTab === 'groups') return <AdminGroupsOverview groups={groups} loading={loading} error={error} onRetry={retryActiveTab} />;
-    if (activeTab === 'defense') return <DefensePanel groups={groups} />;
+    if (activeTab === 'jury') return <JuryPanel groups={groups} />;
+    if (activeTab === 'defense') return <DefenseSchedulePanel groups={groups} />;
     if (activeTab === 'config') return <PFEConfigCard />;
+    if (activeTab === 'analytics') return <AdminAnalyticsPanel subjects={subjects} groups={groups} />;
     return null;
   };
 
   const tabCounts = {
     subjects: subjects.length || undefined,
     groups: groups.length || undefined,
+    jury: (Array.isArray(groups) ? groups.filter((g) => (g.pfeJury || []).length > 0).length : undefined),
   };
 
   return (

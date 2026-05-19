@@ -8,7 +8,7 @@ import StudentPFE from './StudentPFE';
 
 export default function PFEWorkspacePage() {
   const { user, loading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState('subjects');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [subjects, setSubjects] = useState([]);
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -61,10 +61,8 @@ export default function PFEWorkspacePage() {
 
   useEffect(() => {
     setError(null);
-    if (activeTab === 'subjects' || activeTab === 'groups') {
-      loadSubjects();
-      loadGroups();
-    }
+    loadSubjects();
+    loadGroups();
   }, [activeTab, loadSubjects, loadGroups]);
 
   const handleValidate = async (sujetId) => {
@@ -92,11 +90,9 @@ export default function PFEWorkspacePage() {
   };
 
   const retryActiveTab = useCallback(() => {
-    if (activeTab === 'subjects' || activeTab === 'groups') {
-      loadSubjects();
-      loadGroups();
-    }
-  }, [activeTab, loadSubjects, loadGroups]);
+    loadSubjects();
+    loadGroups();
+  }, [loadSubjects, loadGroups]);
 
   if (authLoading) return null;
 

@@ -554,6 +554,7 @@ export interface AdminAnalytics {
     suspended: number;
     students: number;
     teachers: number;
+    admins: number;
   };
   academic: {
     promos: number;
@@ -613,6 +614,7 @@ export const getAdminStatistics = async (): Promise<AdminAnalytics> => {
     suspendedUsers,
     totalStudents,
     totalTeachers,
+    totalAdmins,
     totalPromos,
     totalModules,
     totalReclamations,
@@ -650,6 +652,7 @@ export const getAdminStatistics = async (): Promise<AdminAnalytics> => {
     prisma.user.count({ where: { status: "suspended" } }),
     prisma.etudiant.count(),
     prisma.enseignant.count(),
+    prisma.user.count({ where: { userRoles: { some: { role: { nom: "admin" } } } } }),
     prisma.promo.count(),
     prisma.module.count(),
     prisma.reclamation.count(),
@@ -719,6 +722,7 @@ export const getAdminStatistics = async (): Promise<AdminAnalytics> => {
       suspended: suspendedUsers,
       students: totalStudents,
       teachers: totalTeachers,
+      admins: totalAdmins,
     },
     academic: {
       promos: totalPromos,

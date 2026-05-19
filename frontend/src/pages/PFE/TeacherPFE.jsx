@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Users, CalendarDays, Plus, XCircle, Loader2, Pencil } from 'lucide-react';
+import { BookOpen, Users, CalendarDays, Plus, XCircle, Loader2, Pencil, LayoutDashboard } from 'lucide-react';
 import {
   SectionHeader,
   Shimmer,
@@ -7,6 +7,7 @@ import {
   ErrorBanner,
   CapacityBar,
   StatusBadge,
+  StatCard,
   getUserDisplayName,
   LeftNav,
   PageHeader,
@@ -18,6 +19,7 @@ import request from '../../services/api';
 import { pfeAdminAPI } from '../../services/pfe';
 
 const TEACHER_TABS = [
+  { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard, hint: 'Overview' },
   { id: 'subjects', label: 'My Subjects', Icon: BookOpen, hint: 'Your proposals' },
   { id: 'groups', label: 'Groups', Icon: Users, hint: 'Groups on your topics' },
   { id: 'defense', label: 'Defense Plan', Icon: CalendarDays, hint: 'Defense schedule' },
@@ -33,6 +35,53 @@ function SkeletonList({ count = 3 }) {
            <Shimmer className="h-4 w-1/2" />
         </div>
       ))}
+    </div>
+  );
+}
+
+function TeacherDashboardPanel({ subjects, groups, loading }) {
+  const listSubjects = Array.isArray(subjects) ? subjects : [];
+  const listGroups = Array.isArray(groups) ? groups : [];
+  const pendingSubjects = listSubjects.filter((s) => s.status === 'propose').length;
+  const scheduledDefenses = listGroups.filter((g) => g.dateSoutenance).length;
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        eyebrow="PFE Overview"
+        title="Teacher Dashboard"
+        subtitle="Your subjects, assigned groups, and defense cadence."
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatCard
+          icon={BookOpen}
+          label="My subjects"
+          value={listSubjects.length}
+          colorCls="bg-brand/10 text-brand"
+          loading={loading}
+        />
+        <StatCard
+          icon={Users}
+          label="Assigned groups"
+          value={listGroups.length}
+          colorCls="bg-success/10 text-success"
+          loading={loading}
+        />
+        <StatCard
+          icon={CalendarDays}
+          label="Scheduled defenses"
+          value={scheduledDefenses}
+          colorCls="bg-warning/10 text-warning"
+          loading={loading}
+        />
+        <StatCard
+          icon={BookOpen}
+          label="Pending subjects"
+          value={pendingSubjects}
+          colorCls="bg-surface-200 text-ink"
+          loading={loading}
+        />
+      </div>
     </div>
   );
 }
@@ -647,6 +696,15 @@ export default function TeacherPFE({
   const teacherProfileId = user?.enseignant?.id ?? null;
 
   const renderCenter = () => {
+    if (activeTab === 'dashboard') {
+      return (
+        <TeacherDashboardPanel
+          subjects={subjects}
+          groups={groups}
+          loading={loading}
+        />
+      );
+    }
     if (activeTab === 'subjects') {
       return <TeacherSubjectsView subjects={subjects} loading={loading} error={error} onRefresh={retryActiveTab} teacherProfileId={teacherProfileId} onRetry={retryActiveTab} />;
     }
@@ -663,6 +721,7 @@ export default function TeacherPFE({
 
   const tabCounts = {
     subjects: subjects.length || undefined,
+    groups: groups.length || undefined,
   };
 
   return (

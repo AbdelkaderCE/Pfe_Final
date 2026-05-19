@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BookOpen, Users, CalendarDays, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Users, CalendarDays, CheckCircle2, LayoutDashboard } from 'lucide-react';
 import {
   SectionHeader,
   Shimmer,
@@ -7,15 +7,64 @@ import {
   ErrorBanner,
   CapacityBar,
   getUserDisplayName,
+  StatCard,
   LeftNav,
   PageHeader,
 } from './SharedPFEUI';
 
 const STUDENT_TABS = [
+  { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard, hint: 'Overview' },
   { id: 'subjects', label: 'Available Subjects', Icon: BookOpen, hint: 'Browse topics' },
   { id: 'groups', label: 'My Group', Icon: Users, hint: 'Your PFE group' },
   { id: 'defense', label: 'Defense Info', Icon: CalendarDays, hint: 'Defense details' },
 ];
+
+function StudentDashboardPanel({ subjects, myGroup, loading }) {
+  const validated = (Array.isArray(subjects) ? subjects : []).filter((s) => s.status === 'valide');
+  const hasGroup = Boolean(myGroup);
+  const hasSubject = Boolean(myGroup?.sujetFinalId || myGroup?.sujetFinal?.id);
+  const defenseScheduled = Boolean(myGroup?.dateSoutenance);
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        eyebrow="PFE Overview"
+        title="Student Dashboard"
+        subtitle="Your project status and available subjects."
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatCard
+          icon={BookOpen}
+          label="Validated subjects"
+          value={validated.length}
+          colorCls="bg-brand/10 text-brand"
+          loading={loading}
+        />
+        <StatCard
+          icon={Users}
+          label="Group assigned"
+          value={hasGroup ? 1 : 0}
+          colorCls="bg-success/10 text-success"
+          loading={loading}
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="Subject locked"
+          value={hasSubject ? 1 : 0}
+          colorCls="bg-warning/10 text-warning"
+          loading={loading}
+        />
+        <StatCard
+          icon={CalendarDays}
+          label="Defense scheduled"
+          value={defenseScheduled ? 1 : 0}
+          colorCls="bg-surface-200 text-ink"
+          loading={loading}
+        />
+      </div>
+    </div>
+  );
+}
 
 function StudentSubjectGallery({ subjects, loading, error, onRetry, myGroup }) {
   const validated = (Array.isArray(subjects) ? subjects : []).filter((s) => s.status === 'valide');
@@ -262,6 +311,15 @@ export default function StudentPFE({
   }, [groups, user]);
 
   const renderCenter = () => {
+    if (activeTab === 'dashboard') {
+      return (
+        <StudentDashboardPanel
+          subjects={subjects}
+          myGroup={myGroup}
+          loading={loading}
+        />
+      );
+    }
     if (activeTab === 'subjects') {
       return (
         <StudentSubjectGallery
@@ -291,6 +349,7 @@ export default function StudentPFE({
 
   const tabCounts = {
     subjects: subjects.length || undefined,
+    groups: myGroup ? 1 : undefined,
   };
 
   return (

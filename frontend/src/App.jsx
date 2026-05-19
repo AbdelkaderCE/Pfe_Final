@@ -45,7 +45,6 @@ import StudentMyModulesPage from './pages/Student/MyModules';
 import AdminGroupsPage from './pages/admin/Groups';
 import AdminAffectationPage from './pages/admin/AdminAffectationPage';
 import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
-import PfeManagementPage from './pages/admin/PfeManagementPage';
 import AdminStudentNotesPage from './pages/admin/AdminStudentNotesPage';
 import AdminUserStatsPage from './pages/admin/AdminUserStatsPage';
 import StudentHistoryPage from './pages/StudentHistoryPage';
@@ -405,7 +404,7 @@ function App() {
                 path="/dashboard/admin/pfe-management"
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
-                    <DashboardLayout><PfeManagementPage /></DashboardLayout>
+                    <Navigate to="/dashboard/pfe-workspace" replace />
                   </ProtectedRoute>
                 }
               />

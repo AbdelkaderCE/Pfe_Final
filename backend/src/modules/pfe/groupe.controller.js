@@ -184,7 +184,12 @@ class GroupeController {
             typeof data.salleSoutenance === 'string' ? data.salleSoutenance.trim() || null : null,
         },
         include: {
-          sujetFinal: true,
+          sujetFinal: {
+            include: {
+              enseignant: { include: { user: true } },
+              promo: true,
+            },
+          },
           coEncadrant: { include: { user: true } },
           pfeJury: { include: { enseignant: { include: { user: true } } } },
           groupMembers: { include: { etudiant: { include: { user: true } } } },
@@ -207,6 +212,7 @@ class GroupeController {
         sujetFinal: {
           include: {
             enseignant: { include: { user: true } },
+            promo: true,
           },
         },
         coEncadrant: { include: { user: true } },
@@ -273,6 +279,7 @@ class GroupeController {
           sujetFinal: {
             include: {
               enseignant: { include: { user: true } },
+              promo: true,
             },
           },
           coEncadrant: { include: { user: true } },
