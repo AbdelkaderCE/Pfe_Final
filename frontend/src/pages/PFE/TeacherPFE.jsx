@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BookOpen, Users, CalendarDays, Plus, XCircle, Loader2, Pencil, LayoutDashboard } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { BookOpen, Users, CalendarDays, Plus, XCircle, Loader2, Pencil, LayoutDashboard, Gavel, Search, CheckCircle2, AlertTriangle } from 'lucide-react';
 import {
   SectionHeader,
   Shimmer,
@@ -22,6 +22,7 @@ const TEACHER_TABS = [
   { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard, hint: 'Overview' },
   { id: 'subjects', label: 'My Subjects', Icon: BookOpen, hint: 'Your proposals' },
   { id: 'groups', label: 'Groups', Icon: Users, hint: 'Groups on your topics' },
+  { id: 'jury', label: 'Jury Opportunities', Icon: Gavel, hint: 'Apply for jury' },
   { id: 'defense', label: 'Defense Plan', Icon: CalendarDays, hint: 'Defense schedule' },
 ];
 
@@ -463,6 +464,235 @@ function TeacherGroupsOverview({ groups, loading, error, onRetry }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════
+ * JURY OPPORTUNITIES PANEL — Teacher self-selection
+ * ═══════════════════════════════════════════════════════════════ */
+
+const SLOT_BADGE = {
+  president: { icon: '🟢', label: 'President available', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  examiner:  { icon: '🟡', label: 'Examiner slot(s) open', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  full:      { icon: '🔴', label: 'Jury complete', cls: 'bg-red-50 text-red-600 border-red-200' },
+};
+
+function SlotBadge({ type, count }) {
+  const cfg = SLOT_BADGE[type] || SLOT_BADGE.full;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${cfg.cls}`}>
+      <span>{cfg.icon}</span> {count != null ? `${count} ${cfg.label}` : cfg.label}
+    </span>
+  );
+}
+
+function JuryOpportunitiesPanel({ teacherId }) {
+  const [opportunities, setOpportunities] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [applying, setApplying] = useState(null);
+  const [applyError, setApplyError] = useState('');
+  const [applySuccess, setApplySuccess] = useState('');
+  const [filter, setFilter] = useState('available');
+
+  const fetchOpportunities = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await pfeAdminAPI.getJuryOpportunities();
+      setOpportunities(res?.data || []);
+    } catch {
+      setError('Failed to load jury opportunities.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { if (teacherId) fetchOpportunities(); }, [teacherId]);
+
+  const filtered = useMemo(() => {
+    let list = Array.isArray(opportunities) ? opportunities : [];
+    if (filter === 'available') list = list.filter(o => !o.slots.isFull && !o.alreadyMember);
+    if (filter === 'mine') list = list.filter(o => o.alreadyMember);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(o => {
+        const hay = [o.group?.nom_ar, o.group?.nom_en, o.subject?.titre_ar, o.subject?.titre_en,
+          o.subject?.supervisor?.prenom, o.subject?.supervisor?.nom,
+          o.subject?.promo?.nom_en, o.subject?.promo?.specialite?.nom_en].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    return list;
+  }, [opportunities, filter, search]);
+
+  const counts = useMemo(() => ({
+    available: opportunities.filter(o => !o.slots.isFull && !o.alreadyMember).length,
+    mine: opportunities.filter(o => o.alreadyMember).length,
+    all: opportunities.length,
+  }), [opportunities]);
+
+  const handleApply = async (groupId, role) => {
+    setApplying(`${groupId}-${role}`);
+    setApplyError('');
+    setApplySuccess('');
+    try {
+      await pfeAdminAPI.applyForJury(groupId, role);
+      setApplySuccess(`Successfully joined as ${role}!`);
+      await fetchOpportunities();
+    } catch (err) {
+      setApplyError(err?.message || 'Failed to apply.');
+    } finally {
+      setApplying(null);
+    }
+  };
+
+  const handleWithdraw = async (juryId) => {
+    setApplying(`withdraw-${juryId}`);
+    setApplyError('');
+    try {
+      await pfeAdminAPI.withdrawFromJury(juryId);
+      setApplySuccess('Withdrawn from jury.');
+      await fetchOpportunities();
+    } catch (err) {
+      setApplyError(err?.message || 'Failed to withdraw.');
+    } finally {
+      setApplying(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        eyebrow="Jury Selection"
+        title="Jury Opportunities"
+        subtitle={`${counts.available} group${counts.available !== 1 ? 's' : ''} need jury members`}
+      />
+
+      {applySuccess && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <CheckCircle2 className="w-4 h-4" /> {applySuccess}
+          <button onClick={() => setApplySuccess('')} className="ml-auto text-emerald-500 hover:text-emerald-700"><XCircle className="w-4 h-4" /></button>
+        </div>
+      )}
+      {applyError && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <AlertTriangle className="w-4 h-4" /> {applyError}
+          <button onClick={() => setApplyError('')} className="ml-auto text-red-400 hover:text-red-600"><XCircle className="w-4 h-4" /></button>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="rounded-2xl border border-edge bg-surface p-4 shadow-card flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {[{ k: 'available', l: 'Available' }, { k: 'mine', l: 'My Juries' }, { k: 'all', l: 'All Groups' }].map(({ k, l }) => (
+            <button key={k} onClick={() => setFilter(k)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-all ${filter === k ? 'bg-brand text-surface border-brand' : 'bg-surface text-ink-secondary border-edge hover:bg-surface-200'}`}>
+              {l}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${filter === k ? 'bg-surface/20 text-surface' : 'bg-surface-200 text-ink-tertiary'}`}>{counts[k]}</span>
+            </button>
+          ))}
+        </div>
+        <div className="relative ml-auto flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-tertiary" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search group or subject..."
+            className="w-full rounded-xl border border-edge-subtle bg-control-bg pl-9 pr-3 py-1.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+        </div>
+      </div>
+
+      {loading ? <SkeletonList count={3} /> : error ? <ErrorBanner error={{ message: error }} /> : filtered.length === 0 ? (
+        <EmptyState icon={Gavel} title={filter === 'mine' ? 'No jury assignments yet' : 'No opportunities available'}
+          hint={filter === 'mine' ? 'Apply for available groups to join a jury.' : 'All groups have full juries or no groups exist.'} />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((opp) => {
+            const { group, subject, slots, jury, alreadyMember, isSupervisor } = opp;
+            const myEntry = alreadyMember ? jury.find(j => j.enseignant?.id === teacherId) : null;
+            return (
+              <div key={group.id} className={`rounded-2xl border bg-surface p-5 shadow-card transition-all hover:shadow-card-hover ${
+                alreadyMember ? 'border-brand/30 bg-brand/[0.02]' : slots.isFull ? 'border-edge opacity-60' : 'border-edge hover:border-brand/40'}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-bold text-ink">{group.nom_en || group.nom_ar || `Group #${group.id}`}</h3>
+                    <p className="text-xs text-ink-tertiary mt-0.5">
+                      {subject?.promo?.nom_en || subject?.promo?.nom_ar || '—'}
+                      {subject?.promo?.specialite?.nom_en ? ` · ${subject.promo.specialite.nom_en}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {alreadyMember ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-brand/20 bg-brand/10 px-2.5 py-1 text-[11px] font-bold text-brand">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Assigned
+                      </span>
+                    ) : slots.isFull ? <SlotBadge type="full" /> : (
+                      <>
+                        {slots.presidentAvailable && <SlotBadge type="president" />}
+                        {slots.examinersRemaining > 0 && <SlotBadge type="examiner" count={slots.examinersRemaining} />}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-surface-200/50 p-3 mb-3">
+                  <p className="text-[10px] font-semibold text-ink-tertiary uppercase tracking-wider mb-1">Subject</p>
+                  <p className="text-sm font-medium text-ink">{subject?.titre_en || subject?.titre_ar || 'No subject'}</p>
+                  {subject?.supervisor && (
+                    <p className="text-xs text-ink-tertiary mt-1">Supervisor: {subject.supervisor.prenom} {subject.supervisor.nom}</p>
+                  )}
+                </div>
+
+                {/* Current jury display */}
+                {jury.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {jury.map(j => (
+                      <span key={j.id} className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium ${
+                        j.role === 'president' ? 'border-brand/20 bg-brand/5 text-brand' : 'border-edge bg-surface-200 text-ink-secondary'}`}>
+                        {j.role === 'president' ? '👑' : '📋'} {j.enseignant?.prenom} {j.enseignant?.nom}
+                        <span className="text-[9px] opacity-60 uppercase ml-1">{j.role}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 pt-3 border-t border-edge-subtle">
+                  {alreadyMember && myEntry ? (
+                    <button onClick={() => handleWithdraw(myEntry.id)} disabled={applying === `withdraw-${myEntry.id}`}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50 transition-all">
+                      {applying === `withdraw-${myEntry.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                      Withdraw
+                    </button>
+                  ) : slots.isFull ? (
+                    <span className="text-xs text-ink-tertiary font-medium">Jury is complete</span>
+                  ) : (
+                    <>
+                      {slots.presidentAvailable && !isSupervisor && (
+                        <button onClick={() => handleApply(group.id, 'president')} disabled={!!applying}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3 py-1.5 text-xs font-semibold text-surface hover:bg-brand-hover disabled:opacity-50 shadow-sm transition-all">
+                          {applying === `${group.id}-president` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Gavel className="w-3.5 h-3.5" />}
+                          Apply as President
+                        </button>
+                      )}
+                      {slots.examinersRemaining > 0 && (
+                        <button onClick={() => handleApply(group.id, 'examinateur')} disabled={!!applying}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-brand bg-brand/5 px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand/10 disabled:opacity-50 transition-all">
+                          {applying === `${group.id}-examinateur` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Users className="w-3.5 h-3.5" />}
+                          Apply as Examiner
+                        </button>
+                      )}
+                      {isSupervisor && slots.presidentAvailable && (
+                        <span className="text-[11px] text-amber-600 font-medium ml-2">⚠ You supervise this group — cannot be president</span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Role-specific visual treatment for jury badges. Three distinct palettes
 // so a teacher can read their role at a glance.
 const ROLE_BADGE = {
@@ -715,6 +945,7 @@ export default function TeacherPFE({
       );
       return <TeacherGroupsOverview groups={myGroups} loading={loading} error={error} onRetry={retryActiveTab} />;
     }
+    if (activeTab === 'jury') return <JuryOpportunitiesPanel teacherId={teacherProfileId} />;
     if (activeTab === 'defense') return <DefensePanel teacherId={teacherProfileId} />;
     return null;
   };

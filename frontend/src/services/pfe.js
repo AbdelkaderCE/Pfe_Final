@@ -156,6 +156,19 @@ export const pfeAdminAPI = {
   myJuryAssignments: () => request('/api/v1/pfe/jury/me'),
   myTeacherQuota: () => request('/api/v1/pfe/teacher/quota'),
 
+  // ── Teacher jury self-selection ──────────────────────────────────
+  getJuryOpportunities: () => request('/api/v1/pfe/jury/opportunities'),
+  applyForJury: (groupId, role) =>
+    request('/api/v1/pfe/jury/apply', {
+      method: 'POST',
+      body: JSON.stringify({ groupId, role }),
+    }),
+  withdrawFromJury: (juryId) =>
+    request(`/api/v1/pfe/jury/${juryId}`, { method: 'DELETE' }),
+
+  // ── Jury analytics (admin) ──────────────────────────────────────
+  getJuryAnalytics: () => request('/api/v1/pfe/jury/analytics'),
+
   // ── Bulk config update (admin) ─────────────────────────────────
   // Send a partial map of config keys (e.g. { submissionOpen: true, maxSubjectsPerTeacher: 5 })
   updateConfig: (payload) =>

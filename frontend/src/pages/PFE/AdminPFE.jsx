@@ -121,7 +121,7 @@ function AdminAnalyticsPanel({ subjects, groups }) {
   }, [subjectList]);
 
   const groupStatus = useMemo(() => {
-    const counts = { pending: 0, scheduled: 0, completed: 0 };
+    const counts = { pending: 0, partial: 0, full: 0, scheduled: 0, completed: 0 };
     groupList.forEach((group) => {
       const status = resolveGroupStatus(group);
       counts[status] += 1;
@@ -376,15 +376,25 @@ function GroupDetailsModal({ group, onClose }) {
 }
 
 const GROUP_STATUS_CONFIG = {
-  pending: { label: 'Pending', cls: 'bg-warning/10 text-warning border-warning/20' },
-  scheduled: { label: 'Scheduled', cls: 'bg-brand/10 text-brand border-brand/20' },
-  completed: { label: 'Completed', cls: 'bg-success/10 text-success border-success/20' },
+  pending:   { label: 'No Jury',    cls: 'bg-surface-200 text-ink-secondary border-edge' },
+  partial:   { label: 'Partial',    cls: 'bg-warning/10 text-warning border-warning/20' },
+  full:      { label: 'Full Jury',  cls: 'bg-brand/10 text-brand border-brand/20' },
+  scheduled: { label: 'Scheduled',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  completed: { label: 'Completed',  cls: 'bg-success/10 text-success border-success/20' },
 };
+
+const DEFAULT_MAX_EXAMINERS = 2;
 
 const resolveGroupStatus = (group) => {
   if (group?.validationFinale || group?.note != null) return 'completed';
-  if (group?.dateSoutenance) return 'scheduled';
-  return 'pending';
+  const jury = Array.isArray(group?.pfeJury) ? group.pfeJury : [];
+  const hasPresident = jury.some(j => j.role === 'president');
+  const examinerCount = jury.filter(j => j.role === 'examinateur').length;
+  if (jury.length === 0) return 'pending';
+  if (hasPresident && examinerCount >= DEFAULT_MAX_EXAMINERS) {
+    return group?.dateSoutenance ? 'scheduled' : 'full';
+  }
+  return 'partial';
 };
 
 const groupTitle = (group) => group?.nom_ar || group?.nom_en || `Group #${group?.id}`;
@@ -417,7 +427,7 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
   const list = Array.isArray(groups) ? groups : [];
 
   const statusCounts = useMemo(() => {
-    const counts = { all: list.length, pending: 0, scheduled: 0, completed: 0 };
+    const counts = { all: list.length, pending: 0, partial: 0, full: 0, scheduled: 0, completed: 0 };
     list.forEach((group) => {
       const status = resolveGroupStatus(group);
       counts[status] += 1;
@@ -559,7 +569,9 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
               className="rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none"
             >
               <option value="all">All statuses ({statusCounts.all})</option>
-              <option value="pending">Pending ({statusCounts.pending})</option>
+              <option value="pending">No Jury ({statusCounts.pending})</option>
+              <option value="partial">Partial ({statusCounts.partial})</option>
+              <option value="full">Full Jury ({statusCounts.full})</option>
               <option value="scheduled">Scheduled ({statusCounts.scheduled})</option>
               <option value="completed">Completed ({statusCounts.completed})</option>
             </select>
@@ -898,7 +910,7 @@ function JuryPanel({ groups }) {
   const getTeacherLabel = (t) => `${t.prenom || ''} ${t.nom || ''}`.trim() || t.email || `#${t.id}`;
 
   const statusCounts = useMemo(() => {
-    const counts = { all: groupList.length, pending: 0, scheduled: 0, completed: 0 };
+    const counts = { all: groupList.length, pending: 0, partial: 0, full: 0, scheduled: 0, completed: 0 };
     groupList.forEach((group) => {
       const status = resolveGroupStatus(group);
       counts[status] += 1;
@@ -970,7 +982,9 @@ function JuryPanel({ groups }) {
                 className="rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none"
               >
                 <option value="all">All statuses ({statusCounts.all})</option>
-                <option value="pending">Pending ({statusCounts.pending})</option>
+                <option value="pending">No Jury ({statusCounts.pending})</option>
+                <option value="partial">Partial ({statusCounts.partial})</option>
+                <option value="full">Full Jury ({statusCounts.full})</option>
                 <option value="scheduled">Scheduled ({statusCounts.scheduled})</option>
                 <option value="completed">Completed ({statusCounts.completed})</option>
               </select>
