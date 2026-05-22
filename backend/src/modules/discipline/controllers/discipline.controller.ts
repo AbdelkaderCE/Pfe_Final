@@ -44,6 +44,7 @@ export const listDossiersHandler = async (req: AuthRequest, res: Response, next:
       res.status(403).json({ success: false, error: { message: "Accès refusé: profil enseignant introuvable." } });
       return;
     }
+    // Support availableOnly query parameter to filter only pending cases for council creation
     const data = await svc.listDossiers(caller, req.query);
     res.json({ success: true, data });
   } catch (e) { next(e); }

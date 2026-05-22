@@ -35,11 +35,15 @@ const resolveInfractionId = async (typeInfraction: string, gravite?: string): Pr
 // ═══════════════════ DOSSIER SERVICES ═══════════════════════
 
 export const listDossiers = async (caller: CallerContext, query: Record<string, any>) => {
-  const { status, conseilId, search, gravite, studentId } = query;
+  const { status, conseilId, search, gravite, studentId, availableOnly } = query;
   const graviteFilter = normalizeGravite(gravite);
+  
+  // When availableOnly is true, only show pending cases (not yet attached to council)
+  const isAvailableOnlyFilter = availableOnly === 'true' || availableOnly === true;
+  
   const where: any = {
     ...(!caller.isAdmin && caller.enseignantId ? { enseignantSignalant: caller.enseignantId } : {}),
-    ...(status && { status }),
+    ...(isAvailableOnlyFilter ? { status: 'signale', conseilId: null } : (status && { status })),
     ...(conseilId && { conseilId: Number(conseilId) }),
     ...(graviteFilter && { infraction: { gravite: graviteFilter } }),
     ...(studentId && { etudiantId: Number(studentId) }),
@@ -211,6 +215,12 @@ export const createConseilService = async (input: CreateConseilInput, caller: Ca
 
   const dossierIdList = parseIntArray(input.dossierIds);
   if (!dossierIdList.length) return { error: "Au moins un dossier (dossierIds) est obligatoire.", status: 400 };
+  
+  // Check for duplicates in the provided dossier IDs
+  const uniqueDossierIds = [...new Set(dossierIdList)];
+  if (uniqueDossierIds.length !== dossierIdList.length) {
+    return { error: "Les dossiers fournis contiennent des doublons.", status: 400 };
+  }
 
   const presidentId = Number(input.presidentId);
   if (!isPositiveInt(presidentId)) return { error: "presidentId est obligatoire.", status: 400 };
@@ -223,8 +233,13 @@ export const createConseilService = async (input: CreateConseilInput, caller: Ca
   const dossiers = await repo.findDossiersByIds(dossierIdList);
   if (dossiers.length !== dossierIdList.length) return { error: "Un ou plusieurs dossiers introuvables.", status: 404 };
 
+  // Validate all dossiers are pending (signale) and not attached to any council
   const ineligible = dossiers.find((d) => d.status !== "signale" || d.conseilId !== null);
-  if (ineligible) return { error: `Dossier ${ineligible.id} n'est pas dans l'état 'signale' ou est déjà rattaché à un conseil.`, status: 409 };
+  if (ineligible) {
+    const dossierNum = ineligible.id;
+    const statusMsg = ineligible.status !== "signale" ? `l'état '${ineligible.status}'` : "déjà rattaché à un conseil";
+    return { error: `Dossier ${dossierNum} n'est pas dans l'état 'signale' ou est ${statusMsg}.`, status: 409 };
+  }
 
   const reporters = [...new Set(dossiers.map((d) => d.enseignantSignalant).filter((id): id is number => Number.isInteger(id!) && id! > 0))];
   if (reporters.length !== 1) return { error: reporters.length === 0 ? "Aucun enseignant signalant trouvé." : "Tous les dossiers doivent partager le même enseignant signalant.", status: 409 };
