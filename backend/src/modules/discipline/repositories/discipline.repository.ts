@@ -498,6 +498,25 @@ export const searchStaffByQuery = (query: string, client: DbClient = prisma) =>
     take: 20,
   });
 
+export const searchStaffByPrefix = (query: string, client: DbClient = prisma) =>
+  client.enseignant.findMany({
+    where: {
+      OR: [
+        { user: { nom: { startsWith: query, mode: "insensitive" } } },
+        { user: { prenom: { startsWith: query, mode: "insensitive" } } },
+        { grade: { nom_ar: { startsWith: query, mode: "insensitive" } } },
+        { grade: { nom_en: { startsWith: query, mode: "insensitive" } } },
+      ],
+    },
+    select: {
+      id: true,
+      user: { select: { nom: true, prenom: true, email: true } },
+      grade: { select: { id: true, nom_ar: true, nom_en: true } },
+    },
+    orderBy: [{ user: { nom: "asc" } }, { user: { prenom: "asc" } }],
+    take: 20,
+  });
+
 // ═══════════════════════════════════════════════════════════════
 // Transaction wrapper
 // ═══════════════════════════════════════════════════════════════

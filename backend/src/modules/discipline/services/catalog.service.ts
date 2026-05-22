@@ -167,8 +167,9 @@ export const listStaff = async () => {
 
 export const searchStaff = async (q: string) => {
   const query = q.trim().toLowerCase();
-  if (query.length < 2) return [];
-  const staff = await repo.searchStaffByQuery(query);
+  if (query.length === 0) return [];
+  // For single-letter queries, prefer prefix search (startsWith) to match by first letter.
+  const staff = query.length === 1 ? await repo.searchStaffByPrefix(query) : await repo.searchStaffByQuery(query);
   return staff.map((s) => ({
     id: s.id,
     name: [s.user?.prenom, s.user?.nom].filter(Boolean).join(" ").trim(),

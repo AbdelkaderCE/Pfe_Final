@@ -2285,14 +2285,15 @@ function NewMeetingTab({ cases, staff = STAFF_MEMBERS_DEFAULT, preselected = [],
   // Search staff by name or grade
   const handlePresidentSearch = async (query) => {
     setPresidentSearch(query);
-    if (query.length < 2) {
+    // Allow single-letter prefix searches; clear results only for empty query
+    if (!query || query.trim().length === 0) {
       setPresidentSearchResults([]);
       setShowPresidentResults(false);
       return;
     }
 
     try {
-      const response = await request(`/api/v1/disciplinary/staff/search?q=${encodeURIComponent(query)}`);
+      const response = await request(`/api/v1/disciplinary/staff/search?q=${encodeURIComponent(query.trim())}`);
       if (response?.success && Array.isArray(response.data)) {
         setPresidentSearchResults(response.data);
         setShowPresidentResults(true);
@@ -2304,14 +2305,15 @@ function NewMeetingTab({ cases, staff = STAFF_MEMBERS_DEFAULT, preselected = [],
 
   const handleMemberSearch = async (query) => {
     setMemberSearch(query);
-    if (query.length < 2) {
+    // Allow single-letter prefix searches; clear results only for empty query
+    if (!query || query.trim().length === 0) {
       setMemberSearchResults([]);
       setShowMemberResults(false);
       return;
     }
 
     try {
-      const response = await request(`/api/v1/disciplinary/staff/search?q=${encodeURIComponent(query)}`);
+      const response = await request(`/api/v1/disciplinary/staff/search?q=${encodeURIComponent(query.trim())}`);
       if (response?.success && Array.isArray(response.data)) {
         setMemberSearchResults(response.data);
         setShowMemberResults(true);
@@ -2527,7 +2529,7 @@ function NewMeetingTab({ cases, staff = STAFF_MEMBERS_DEFAULT, preselected = [],
             className="w-full px-3 py-2.5 text-sm bg-control-bg border border-control-border rounded-md text-ink focus:ring-2 focus:ring-brand/30 focus:border-brand"
           >
             <option value="" disabled>+ Add a case...</option>
-            {cases.filter(c => !selectedCaseIds.includes(c.id) && c.status === 'signale').map(c => (
+            {cases.filter(c => !selectedCaseIds.includes(c.id) && c.status === 'pending').map(c => (
               <option key={c.id} value={c.id}>{c.studentName} ({c.id})</option>
             ))}
           </select>
