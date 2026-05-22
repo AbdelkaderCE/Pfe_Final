@@ -196,34 +196,31 @@ curl -X POST http://localhost:5000/api/v1/auth/login -H "Content-Type: applicati
 
 Should return a success response with user data.
 
-### Admin bulk user import (Excel)
+### Admin bulk user import (CSV)
 
-Admins and vice deans can import users from an Excel file:
+Admins can import students or teachers from a CSV file:
 
-- **Endpoint:** `POST /api/v1/auth/admin/import-users-excel`
-- **Auth:** required (`admin` or `vice_doyen` role)
-- **Content-Type:** `multipart/form-data` with a `file` field (`.xlsx` or `.xls`)
+- **Student import:** `POST /api/v1/auth/admin/import-students`
+- **Teacher import:** `POST /api/v1/auth/admin/import-teachers`
+- **Auth:** required (`admin` role)
+- **Content-Type:** `multipart/form-data` with a `file` field (`.csv`)
+- **Optional field:** `forcePasswordChange=true|false`
 
-Required columns in the first sheet:
+Required CSV header (exact order, no extra columns):
 
+- `matricule`
 - `nom`
 - `prenom`
 - `email`
-- `roles` (comma-separated if multiple; creation supports one base role: `admin`, `enseignant`, or `etudiant`)
-
-Optional columns:
-
 - `telephone`
-- `promoId`
-- `specialiteId`
-- `moduleIds` (comma-separated ids)
-- `anneeUniversitaire`
+
+Validation includes column order, required fields, email format, phone format,
+duplicate detection, and unique matricule checks.
 
 The endpoint returns row-level results with:
 
-- `createdCount`, `failedCount`
-- `created[]` (includes generated temporary password)
-- `failures[]` (row number + reason)
+- `totals` (received, valid, invalid, duplicates, created, errors)
+- `rows[]` (row number, status, message, and temporary password when created)
 
 ---
 

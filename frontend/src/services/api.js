@@ -334,11 +334,27 @@ export const authAPI = {
       body: JSON.stringify(userData),
     }),
 
-  adminImportUsersExcel: (file) => {
+  adminImportStudentsCsv: (file, options = {}) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (typeof options.forcePasswordChange !== 'undefined') {
+      formData.append('forcePasswordChange', String(options.forcePasswordChange));
+    }
 
-    return request('/api/v1/auth/admin/import-users-excel', {
+    return request('/api/v1/auth/admin/import-students', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  adminImportTeachersCsv: (file, options = {}) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (typeof options.forcePasswordChange !== 'undefined') {
+      formData.append('forcePasswordChange', String(options.forcePasswordChange));
+    }
+
+    return request('/api/v1/auth/admin/import-teachers', {
       method: 'POST',
       body: formData,
     });
@@ -728,6 +744,16 @@ export const alertsAPI = {
   markAsRead: (id) =>
     request(`/api/v1/alerts/${id}/read`, {
       method: 'PATCH',
+    }),
+    
+  markAllAsRead: () =>
+    request('/api/v1/alerts/read-all', {
+      method: 'PATCH',
+    }),
+    
+  clearAll: () =>
+    request('/api/v1/alerts/clear-all', {
+      method: 'DELETE',
     }),
 };
 

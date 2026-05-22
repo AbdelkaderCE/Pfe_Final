@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 /* ── Global viewport baseline ──────────────────────────────────── */
 html, body, #root {
   height: 100%;
@@ -17,6 +19,33 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* ── Import flows — dedicated typography and motion ─────────── */
+.import-font-sans {
+  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+.import-font-mono {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+@keyframes importFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.import-fade-up {
+  animation: importFadeUp 0.6s ease both;
+}
+
+@keyframes importBar {
+  from { transform: translateX(-60%); }
+  to { transform: translateX(120%); }
+}
+
+.import-progress-bar {
+  animation: importBar 1.2s ease-in-out infinite;
 }
 
 /* ================================================================

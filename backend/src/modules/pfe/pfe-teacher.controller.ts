@@ -93,26 +93,7 @@ export const getTeacherPromosHandler = async (req: AuthRequest, res: Response) =
       return;
     }
 
-    const enseignements = await prisma.enseignement.findMany({
-      where: { enseignantId },
-      select: { promoId: true },
-    });
-
-    const promoIds = [
-      ...new Set(
-        enseignements
-          .map((e) => e.promoId)
-          .filter((id): id is number => Number.isInteger(id) && (id as number) > 0)
-      ),
-    ];
-
-    if (promoIds.length === 0) {
-      res.json({ success: true, data: [] });
-      return;
-    }
-
     const promos = await prisma.promo.findMany({
-      where: { id: { in: promoIds } },
       select: {
         id: true,
         nom_ar: true,

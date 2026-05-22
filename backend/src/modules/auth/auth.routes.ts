@@ -11,7 +11,8 @@ import {
   getMeHandler,
   changePasswordHandler,
   createUserByAdminHandler,
-  importUsersByAdminExcelHandler,
+  importStudentsByAdminCsvHandler,
+  importTeachersByAdminCsvHandler,
   adminResetPasswordHandler,
   listAdminUsersHandler,
   exportAdminUsersPdfHandler,
@@ -42,18 +43,19 @@ import upload from "../../middlewares/upload.middleware";
 
 const router = Router();
 
-const excelUpload = multer({
+const csvUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: 3 * 1024 * 1024,
   },
   fileFilter: (_req, file, cb) => {
     const extension = path.extname(file.originalname || "").toLowerCase();
-    if ([".xlsx", ".xls"].includes(extension)) {
+    const mime = (file.mimetype || "").toLowerCase();
+    if (extension === ".csv" || ["text/csv", "text/plain", "application/vnd.ms-excel"].includes(mime)) {
       cb(null, true);
       return;
     }
-    cb(new Error("Only Excel files (.xlsx, .xls) are allowed"));
+    cb(new Error("Only CSV files (.csv) are allowed"));
   },
 });
 
@@ -94,12 +96,21 @@ router.post(
 );
 
 router.post(
-  "/admin/import-users-excel",
+  "/admin/import-students",
   requireAuth,
   requireRole(["admin"]),
   requireAnyPermission(["users:manage"]),
-  excelUpload.single("file"),
-  importUsersByAdminExcelHandler
+  csvUpload.single("file"),
+  importStudentsByAdminCsvHandler
+);
+
+router.post(
+  "/admin/import-teachers",
+  requireAuth,
+  requireRole(["admin"]),
+  requireAnyPermission(["users:manage"]),
+  csvUpload.single("file"),
+  importTeachersByAdminCsvHandler
 );
 
 // Reset password - requires 'users:edit' permission

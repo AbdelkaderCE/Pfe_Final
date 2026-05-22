@@ -3,6 +3,8 @@ import { AuthRequest } from "../../middlewares/auth.middleware";
 import {
   getUserAlerts,
   markAsRead,
+  markAllAsRead,
+  clearAllUserAlerts
 } from "./alerts.service";
 import logger from "../../utils/logger";
 
@@ -84,5 +86,31 @@ export const markAlertAsReadHandler = async (req: AuthRequest, res: Response): P
       success: false,
       message,
     });
+  }
+};
+
+export const markAllAlertsAsReadHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  try {
+    const result = await markAllAsRead(userId);
+    res.status(200).json({ success: true, message: "Toutes les alertes ont été marquées comme lues", count: result.count });
+  } catch (error) {
+    logger.error("markAllAlertsAsReadHandler", error);
+    res.status(500).json({ success: false, message: "Erreur lors du marquage des alertes" });
+  }
+};
+
+export const clearAllAlertsHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  try {
+    const result = await clearAllUserAlerts(userId);
+    res.status(200).json({ success: true, message: "Toutes les alertes ont été supprimées", count: result.count });
+  } catch (error) {
+    logger.error("clearAllAlertsHandler", error);
+    res.status(500).json({ success: false, message: "Erreur lors de la suppression des alertes" });
   }
 };

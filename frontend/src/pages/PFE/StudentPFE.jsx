@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BookOpen, Users, CalendarDays, CheckCircle2, LayoutDashboard } from 'lucide-react';
+import request from '../../services/api';
 import {
   SectionHeader,
   Shimmer,
@@ -66,7 +67,7 @@ function StudentDashboardPanel({ subjects, myGroup, loading }) {
   );
 }
 
-function StudentSubjectGallery({ subjects, loading, error, onRetry, myGroup }) {
+function StudentSubjectGallery({ subjects, loading, error, onRetry, myGroup, user }) {
   const validated = (Array.isArray(subjects) ? subjects : []).filter((s) => s.status === 'valide');
   const assignedSubjectId = myGroup?.sujetFinalId;
   const assignedSubject = assignedSubjectId ? validated.find(s => s.id === assignedSubjectId) || myGroup?.sujetFinal : null;
@@ -277,7 +278,39 @@ function GroupsOverviewStudent({ myGroup, loading, error, onRetry }) {
   );
 }
 
-function DefensePanel() {
+function DefensePanel({ myGroup }) {
+  const jury = Array.isArray(myGroup?.pfeJury) ? myGroup.pfeJury : [];
+  const hasJury = jury.length > 0;
+  const isScheduled = !!myGroup?.dateSoutenance;
+
+  if (!hasJury && !isScheduled) {
+    return (
+      <div className="space-y-4">
+        <SectionHeader
+          eyebrow="Defense Planning"
+          title="Defense Schedule"
+          subtitle="Oral defense sessions and jury assignments"
+        />
+        <EmptyState
+          icon={CalendarDays}
+          title="Defense planning not ready"
+          hint="You will be able to see your defense schedule here once the administration validates it."
+        />
+      </div>
+    );
+  }
+
+  const formatDefenseDate = (value) => {
+    if (!value) return { date: '—', time: '' };
+    const dateObj = new Date(value);
+    if (Number.isNaN(dateObj.getTime())) return { date: '—', time: '' };
+    return {
+      date: dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      time: dateObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    };
+  };
+  const parsed = formatDefenseDate(myGroup?.dateSoutenance);
+
   return (
     <div className="space-y-4">
       <SectionHeader
@@ -285,11 +318,51 @@ function DefensePanel() {
         title="Defense Schedule"
         subtitle="Oral defense sessions and jury assignments"
       />
-      <EmptyState
-        icon={CalendarDays}
-        title="Defense planning not ready"
-        hint="You will be able to see your defense schedule here once the administration validates it."
-      />
+      
+      <div className="rounded-2xl border border-edge bg-surface shadow-card overflow-hidden">
+        <div className="p-5 border-b border-edge bg-surface-50 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-brand/10 text-brand rounded-xl">
+              <CalendarDays className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                {isScheduled ? parsed.date : 'Not Scheduled Yet'}
+              </p>
+              <p className="text-xs text-ink-tertiary">
+                {isScheduled ? `at ${parsed.time}` : 'Date and time pending'}
+              </p>
+            </div>
+          </div>
+          {myGroup?.salleSoutenance && (
+             <div className="text-right">
+                <p className="text-sm font-semibold text-ink">{myGroup.salleSoutenance}</p>
+                <p className="text-xs text-ink-tertiary uppercase tracking-wider">Room</p>
+             </div>
+          )}
+        </div>
+
+        {hasJury && (
+          <div className="p-5">
+            <h3 className="text-sm font-bold text-ink mb-4">Jury Members</h3>
+            <div className="space-y-3">
+              {jury.map((member, i) => (
+                 <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-edge-subtle bg-surface-100">
+                    <div className="flex items-center gap-3">
+                       <div className="w-8 h-8 rounded-full bg-surface-300 flex items-center justify-center text-xs font-bold text-ink">
+                         {(member.enseignant?.user?.prenom?.[0] || '?').toUpperCase()}
+                       </div>
+                       <div>
+                          <p className="text-sm font-medium text-ink">{member.enseignant?.user?.prenom} {member.enseignant?.user?.nom}</p>
+                          <p className="text-xs text-ink-tertiary capitalize">{member.role}</p>
+                       </div>
+                    </div>
+                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -328,6 +401,7 @@ export default function StudentPFE({
           error={error}
           onRetry={retryActiveTab}
           myGroup={myGroup}
+          user={user}
         />
       );
     }
@@ -342,7 +416,7 @@ export default function StudentPFE({
       );
     }
     if (activeTab === 'defense') {
-      return <DefensePanel />;
+      return <DefensePanel myGroup={myGroup} />;
     }
     return null;
   };

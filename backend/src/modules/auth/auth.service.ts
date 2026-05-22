@@ -201,9 +201,8 @@ export const registerUser = async (data: RegisterInput): Promise<LoginResponse> 
 
 // ── Login ───────────────────────────────────────────────────────
 
-const LOCK_THRESHOLD = 5;
+const LOCK_THRESHOLD = 3;
 const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
-const isDev = process.env.NODE_ENV !== "production";
 
 export const loginUser = async (email: string, password: string): Promise<LoginResponse> => {
   const user = await prisma.user.findUnique({ where: { email } });
@@ -212,13 +211,9 @@ export const loginUser = async (email: string, password: string): Promise<LoginR
     throw new AuthServiceError("Invalid email or password");
   }
 
-  // Temporary brute-force lockout check (bypassed in development)
-  if (!isDev && user.lockUntil && user.lockUntil > new Date()) {
-    const minutesLeft = Math.ceil((user.lockUntil.getTime() - Date.now()) / 60000);
-    throw new AuthServiceError(
-      `Account temporarily locked due to failed login attempts. Try again in ${minutesLeft} minute(s).`,
-      "ACCOUNT_LOCKED"
-    );
+  // Temporary brute-force lockout check
+  if (user.lockUntil && user.lockUntil > new Date()) {
+    throw new AuthServiceError("please try again later", "ACCOUNT_LOCKED");
   }
 
   // Manual suspension / inactive — separate from brute-force lockout
@@ -1036,14 +1031,14 @@ export const listUsersForAdminPdfExport = async (
   const users = await prisma.user.findMany({
     where: roleNameFilter
       ? {
-          userRoles: {
-            some: {
-              role: {
-                nom: roleNameFilter,
-              },
+        userRoles: {
+          some: {
+            role: {
+              nom: roleNameFilter,
             },
           },
-        }
+        },
+      }
       : undefined,
     select: {
       id: true,
@@ -1474,9 +1469,9 @@ export const getUserById = async (userId: number) => {
   // profile. Used by the frontend to gate president-only UI per conseil.
   const memberships = user.enseignant
     ? await prisma.membreConseil.findMany({
-        where: { enseignantId: user.enseignant.id },
-        select: { conseilId: true, role: true },
-      })
+      where: { enseignantId: user.enseignant.id },
+      select: { conseilId: true, role: true },
+    })
     : [];
 
   return {

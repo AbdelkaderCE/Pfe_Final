@@ -85,6 +85,15 @@ function validateManualGroupPayload(payload) {
     );
   }
 
+  let sujetFinalId = null;
+  if (payload.sujetFinalId !== undefined && payload.sujetFinalId !== null && payload.sujetFinalId !== '') {
+    const parsed = Number.parseInt(payload.sujetFinalId, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new DomainError(400, 'INVALID_SUBJECT_ID', 'sujetFinalId must be a positive integer');
+    }
+    sujetFinalId = parsed;
+  }
+
   if (!Array.isArray(payload.members) || payload.members.length === 0) {
     throw new DomainError(
       400,
@@ -140,14 +149,14 @@ function validateManualGroupPayload(payload) {
     );
   }
 
-  return { nom_ar, nom_en, coEncadrantId, members };
+  return { nom_ar, nom_en, coEncadrantId, sujetFinalId, members };
 }
 
 /**
  * Creates a GroupPfe with its members in a single atomic transaction.
  *
- * Per the admin manual-assembly spec, sujetFinalId is NOT assigned by this
- * endpoint — the subject is attached later through the dedicated flow.
+ * sujetFinalId is optional. When provided, the group is assigned to that
+ * subject during creation (admin-only flow).
  *
  * @param {Object} rawPayload - Raw request body
  * @returns {Promise<Object>} Created group with members (and coEncadrant)
@@ -155,9 +164,12 @@ function validateManualGroupPayload(payload) {
 async function createManualGroup(rawPayload) {
   const payload = validateManualGroupPayload(rawPayload);
   const etudiantIds = payload.members.map((m) => m.etudiantId);
-  const anneeUniversitaire = computeAcademicYear();
+  const defaultAcademicYear = computeAcademicYear();
 
   return prisma.$transaction(async (tx) => {
+    let subject = null;
+    let resolvedAcademicYear = defaultAcademicYear;
+
     // 1. coEncadrant must exist (lookup by id or userId)
     const coEncadrant = await tx.enseignant.findFirst({
       where: {
@@ -176,6 +188,56 @@ async function createManualGroup(rawPayload) {
       );
     }
 
+    if (payload.sujetFinalId) {
+      subject = await tx.pfeSujet.findUnique({
+        where: { id: payload.sujetFinalId },
+        select: {
+          id: true,
+          status: true,
+          promoId: true,
+          maxGrps: true,
+          anneeUniversitaire: true,
+          assignmentStatus: true,
+        },
+      });
+
+      if (!subject) {
+        throw new DomainError(
+          404,
+          'SUBJECT_NOT_FOUND',
+          `Subject ${payload.sujetFinalId} not found`,
+        );
+      }
+      if (subject.assignmentStatus === 'finalized') {
+        throw new DomainError(
+          423,
+          'SUBJECT_FINALIZED',
+          'This PFE assignment is locked and cannot be changed',
+        );
+      }
+      if (subject.status !== 'valide') {
+        throw new DomainError(
+          409,
+          'SUBJECT_NOT_VALIDATED',
+          'Subject must have status "valide"',
+        );
+      }
+
+      const usedSlotsCount = await tx.groupPfe.count({
+        where: { sujetFinalId: subject.id },
+      });
+      if (usedSlotsCount >= subject.maxGrps) {
+        throw new DomainError(
+          409,
+          'SUBJECT_FULL',
+          `Subject ${subject.id} has reached its maxGrps (${subject.maxGrps})`,
+        );
+      }
+      subject.usedSlots = usedSlotsCount;
+
+      resolvedAcademicYear = subject.anneeUniversitaire;
+    }
+
     // 2. All students must exist (lookup by id or userId)
     const etudiants = await tx.etudiant.findMany({
       where: {
@@ -184,7 +246,7 @@ async function createManualGroup(rawPayload) {
           { userId: { in: etudiantIds } }
         ]
       },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, promoId: true },
     });
     
     // Map the incoming IDs to the actual Etudiant IDs
@@ -210,11 +272,26 @@ async function createManualGroup(rawPayload) {
     });
     const finalEtudiantIds = resolvedMembers.map(m => m.etudiantId);
 
+    if (subject) {
+      const wrongPromo = resolvedMembers
+        .map((m) => etudiants.find((e) => e.id === m.etudiantId))
+        .filter((e) => e && e.promoId !== subject.promoId);
+
+      if (wrongPromo.length > 0) {
+        const ids = wrongPromo.map((e) => e.id).join(', ');
+        throw new DomainError(
+          409,
+          'PROMO_MISMATCH',
+          `Student(s) ${ids} do not belong to the subject's promo (${subject.promoId})`,
+        );
+      }
+    }
+
     // 3. No student may already belong to another group for this academic year
     const conflicts = await tx.groupMember.findMany({
       where: {
         etudiantId: { in: finalEtudiantIds },
-        group: { sujetFinal: { anneeUniversitaire } },
+        group: { sujetFinal: { anneeUniversitaire: resolvedAcademicYear } },
       },
       select: { etudiantId: true, groupId: true },
     });
@@ -223,22 +300,30 @@ async function createManualGroup(rawPayload) {
       throw new DomainError(
         409,
         'STUDENT_ALREADY_IN_GROUP',
-        `Student(s) ${ids} already belong to a group for academic year ${anneeUniversitaire}`,
+        `Student(s) ${ids} already belong to a group for academic year ${resolvedAcademicYear}`,
       );
     }
 
-    // 4. Persist the group (no sujet — to be assigned later)
+    // 4. Persist the group (optional subject assignment)
     const now = new Date();
     const created = await tx.groupPfe.create({
       data: {
         nom_ar: payload.nom_ar,
         nom_en: payload.nom_en,
         coEncadrantId: coEncadrant.id,
-        sujetFinalId: null,
+        sujetFinalId: subject ? subject.id : null,
         dateCreation: now,
+        dateAffectation: subject ? now : null,
       },
       select: { id: true },
     });
+
+    if (subject && subject.usedSlots + 1 >= subject.maxGrps) {
+      await tx.pfeSujet.update({
+        where: { id: subject.id },
+        data: { status: 'affecte' },
+      });
+    }
 
     // 5. Bulk-insert members in the same transaction
     await tx.groupMember.createMany({

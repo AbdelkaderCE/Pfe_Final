@@ -3,7 +3,7 @@ import prisma from "../../config/database";
 import logger from "../../utils/logger";
 import { createAlert } from "./alert.service";
 
-export { createAlert, getUserAlerts, markAsRead } from "./alert.service";
+export { createAlert, getUserAlerts, markAsRead, markAllAsRead, clearAllUserAlerts } from "./alert.service";
 
 type AlertEventClient = typeof prisma | Prisma.TransactionClient;
 

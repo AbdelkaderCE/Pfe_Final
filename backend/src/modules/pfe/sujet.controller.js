@@ -92,44 +92,14 @@ class SujetController {
     }
 
     // ── Promo enforcement ─────────────────────────────────────────
-    // Teacher must supply a promoId. If not admin, we verify the teacher
-    // is actually assigned to that promo via their enseignement records.
     let promoId = toPositiveInt(data.promoId);
 
-    if (!isAdmin(req)) {
-      const allowedPromoIds = await getTeacherAllowedPromoIds(enseignantId);
-      if (allowedPromoIds.length === 0) {
-        return res.status(403).json({
-          success: false,
-          error: {
-            code: 'NO_PROMO_ASSIGNED',
-            message: 'You are not assigned to any promo. Contact administration to be assigned.',
-          },
-        });
-      }
-      // If no promoId provided, auto-assign first allowed promo
-      if (!promoId) {
-        promoId = allowedPromoIds[0];
-      }
-      // Verify teacher has access to requested promo
-      if (!allowedPromoIds.includes(promoId)) {
-        return res.status(403).json({
-          success: false,
-          error: {
-            code: 'PROMO_FORBIDDEN',
-            message: 'You can only create subjects for promos you are assigned to.',
-          },
-        });
-      }
-    } else {
-      // Admin fallback: if no promoId provided, pick the first available
-      if (!promoId) {
-        const fallbackPromo = await prisma.promo.findFirst({
-          orderBy: { id: 'asc' },
-          select: { id: true },
-        });
-        promoId = fallbackPromo?.id || null;
-      }
+    if (!promoId) {
+      const fallbackPromo = await prisma.promo.findFirst({
+        orderBy: { id: 'asc' },
+        select: { id: true },
+      });
+      promoId = fallbackPromo?.id || null;
     }
 
     if (!promoId) {
@@ -334,7 +304,7 @@ class SujetController {
             error: { code: 'FORBIDDEN', message: 'You can only edit subjects you own.' },
           });
         }
-        if (existing.status !== 'propose') {
+        if (existing.status !== 'propose' && existing.status !== 'refuse') {
           return res.status(409).json({
             success: false,
             error: {
@@ -353,6 +323,10 @@ class SujetController {
         anneeUniversitaire: data.anneeUniversitaire,
         maxGrps: data.maxGrps,
       };
+
+      if (!isAdmin(req) && existing.status === 'refuse') {
+        updateData.status = 'propose';
+      }
 
       // Map bilingual fields only when provided (supports legacy single-language payload).
       if (data.titre_ar !== undefined)         updateData.titre_ar = data.titre_ar;

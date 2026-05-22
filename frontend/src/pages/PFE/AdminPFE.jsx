@@ -17,11 +17,12 @@ import {
   ChevronDown,
   ChevronUp,
   MapPin,
+  BookOpen,
 } from 'lucide-react';
 import {
   SectionHeader, Shimmer, EmptyState, ErrorBanner, CapacityBar, StatusBadge,
   getUserDisplayName, LeftNav, PageHeader, SUBJECT_STATUS, normalizeApiError, FilterPills, StatCard,
-  EditSubjectModal, EditGroupModal,
+  EditSubjectModal, EditGroupModal, AssignSubjectModal,
 } from './SharedPFEUI';
 import request from '../../services/api';
 import PFEConfigCard from '../../components/pfe/admin/PFEConfigCard';
@@ -376,6 +377,7 @@ function GroupDetailsModal({ group, onClose }) {
 }
 
 const GROUP_STATUS_CONFIG = {
+  no_subject:{ label: 'No Subject', cls: 'bg-danger/10 text-danger border-danger/20' },
   pending:   { label: 'No Jury',    cls: 'bg-surface-200 text-ink-secondary border-edge' },
   partial:   { label: 'Partial',    cls: 'bg-warning/10 text-warning border-warning/20' },
   full:      { label: 'Full Jury',  cls: 'bg-brand/10 text-brand border-brand/20' },
@@ -387,6 +389,7 @@ const DEFAULT_MAX_EXAMINERS = 2;
 
 const resolveGroupStatus = (group) => {
   if (group?.validationFinale || group?.note != null) return 'completed';
+  if (!group?.sujetFinalId) return 'no_subject';
   const jury = Array.isArray(group?.pfeJury) ? group.pfeJury : [];
   const hasPresident = jury.some(j => j.role === 'president');
   const examinerCount = jury.filter(j => j.role === 'examinateur').length;
@@ -411,10 +414,11 @@ const formatDefenseDate = (value) => {
   };
 };
 
-function AdminGroupsOverview({ groups, loading, error, onRetry }) {
+function AdminGroupsOverview({ groups, subjects, loading, error, onRetry }) {
   const [showModal, setShowModal] = useState(false);
+  const [assigningGroup, setAssigningGroup] = useState(null);
   const [editingGroup, setEditingGroup] = useState(null);
-  const [formData, setFormData] = useState({ nom_ar: '', nom_en: '', coEncadrantId: '', members: [{ etudiantId: '', role: 'chef_groupe' }] });
+  const [formData, setFormData] = useState({ nom_ar: '', nom_en: '', coEncadrantId: '', sujetFinalId: '', members: [{ etudiantId: '', role: 'chef_groupe' }] });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [users, setUsers] = useState({ teachers: [], students: [] });
@@ -427,10 +431,10 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
   const list = Array.isArray(groups) ? groups : [];
 
   const statusCounts = useMemo(() => {
-    const counts = { all: list.length, pending: 0, partial: 0, full: 0, scheduled: 0, completed: 0 };
+    const counts = { all: list.length, no_subject: 0, pending: 0, partial: 0, full: 0, scheduled: 0, completed: 0 };
     list.forEach((group) => {
       const status = resolveGroupStatus(group);
-      counts[status] += 1;
+      if (counts[status] !== undefined) counts[status] += 1;
     });
     return counts;
   }, [list]);
@@ -498,7 +502,7 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
   };
 
   const handleOpenModal = () => { setShowModal(true); fetchUsers(); };
-  const handleCloseModal = () => { setShowModal(false); setFormData({ nom_ar: '', nom_en: '', coEncadrantId: '', members: [{ etudiantId: '', role: 'chef_groupe' }] }); setSubmitError(null); };
+  const handleCloseModal = () => { setShowModal(false); setFormData({ nom_ar: '', nom_en: '', coEncadrantId: '', sujetFinalId: '', members: [{ etudiantId: '', role: 'chef_groupe' }] }); setSubmitError(null); };
 
   const handleAddMember = () => { if (formData.members.length < 3) setFormData(p => ({ ...p, members: [...p.members, { etudiantId: '', role: 'membre' }] })); };
   const handleRemoveMember = (idx) => setFormData(p => ({ ...p, members: p.members.filter((_, i) => i !== idx) }));
@@ -569,6 +573,7 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
               className="rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none"
             >
               <option value="all">All statuses ({statusCounts.all})</option>
+              <option value="no_subject">No Subject ({statusCounts.no_subject})</option>
               <option value="pending">No Jury ({statusCounts.pending})</option>
               <option value="partial">Partial ({statusCounts.partial})</option>
               <option value="full">Full Jury ({statusCounts.full})</option>
@@ -647,6 +652,13 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <div className="inline-flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setAssigningGroup(group)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-ink hover:bg-surface-200"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" /> Assign
+                            </button>
                             <button
                               type="button"
                               onClick={() => toggleExpanded(group.id)}
@@ -731,6 +743,15 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
         />
       )}
 
+      {assigningGroup && (
+        <AssignSubjectModal
+          group={assigningGroup}
+          subjects={subjects}
+          onClose={() => setAssigningGroup(null)}
+          onAssigned={async () => { if (onRetry) await onRetry(); }}
+        />
+      )}
+
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-surface w-full max-w-lg rounded-2xl shadow-xl max-h-[90vh] flex flex-col">
@@ -748,6 +769,15 @@ function AdminGroupsOverview({ groups, loading, error, onRetry }) {
                 <div>
                   <label className="block text-xs font-semibold text-ink-secondary mb-1.5 uppercase">Group Name (English)</label>
                   <input type="text" value={formData.nom_en} onChange={e => setFormData({...formData, nom_en: e.target.value})} className="w-full rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none focus:border-brand" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-ink-secondary mb-1.5 uppercase">Assigned Subject (Optional)</label>
+                  <select value={formData.sujetFinalId} onChange={e => setFormData({...formData, sujetFinalId: e.target.value})} className="w-full rounded-xl border border-edge-subtle bg-control-bg px-3 py-2 text-sm text-ink outline-none focus:border-brand">
+                    <option value="">No subject</option>
+                    {(subjects || []).filter(s => s.status === 'valide' && (s.groupsPfe?.length || 0) < (s.maxGrps || 1)).map(s => (
+                      <option key={s.id} value={s.id}>{s.titre_ar || s.titre_en}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-ink-secondary mb-1.5 uppercase">Co-encadrant (Teacher) *</label>
@@ -1276,7 +1306,7 @@ export default function AdminPFE({
   const renderCenter = () => {
     if (activeTab === 'dashboard') return <AdminDashboardPanel subjects={subjects} groups={groups} loading={loading} />;
     if (activeTab === 'subjects') return <AdminValidationQueue subjects={subjects} loading={loading} error={error} onValidate={handleValidate} onReject={handleReject} onRetry={retryActiveTab} />;
-    if (activeTab === 'groups') return <AdminGroupsOverview groups={groups} loading={loading} error={error} onRetry={retryActiveTab} />;
+    if (activeTab === 'groups') return <AdminGroupsOverview groups={groups} subjects={subjects} loading={loading} error={error} onRetry={retryActiveTab} />;
     if (activeTab === 'jury') return <JuryPanel groups={groups} />;
     if (activeTab === 'defense') return <DefenseSchedulePanel groups={groups} />;
     if (activeTab === 'config') return <PFEConfigCard />;

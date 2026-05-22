@@ -287,7 +287,7 @@ function TeacherSubjectsView({ subjects, loading, error, onRefresh, teacherProfi
                   <span className="text-xs text-ink-tertiary">/{subject.maxGrps || 1}</span>
                 </div>
                 <div>
-                  {subject.status === 'propose' && (
+                  {(subject.status === 'propose' || subject.status === 'refuse') && (
                     <button
                       type="button"
                       onClick={() => setEditingSubject(subject)}

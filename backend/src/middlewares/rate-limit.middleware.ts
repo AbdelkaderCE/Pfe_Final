@@ -24,7 +24,7 @@ const rateLimitResponse = (code: string, message: string) => ({
 
 export const loginLimiter = rateLimit({
   windowMs: toPositiveInt(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, defaultWindowMs),
-  max: toPositiveInt(process.env.LOGIN_RATE_LIMIT_MAX, isProduction ? 5 : 60),
+  max: toPositiveInt(process.env.LOGIN_RATE_LIMIT_MAX, isProduction ? 3 : 60),
   // In development, local testing can hit /login frequently; skip local loopback traffic.
   skip: (req) => !isProduction && isLoopbackRequest(req.ip),
   // Count only failed logins to preserve brute-force protection without blocking valid sessions.

@@ -715,7 +715,7 @@ export default function AdminRequestsPage() {
               {/* View Student Profile — only for authenticated submitters with a known userId */}
               {req.submitterSource !== 'guest' && req.studentUserId ? (
                 <button
-                  onClick={() => navigate(`/admin/users/${req.studentUserId}`)}
+                  onClick={() => navigate(`/dashboard/admin/user/${req.studentUserId}`)}
                   className="w-full px-3 py-2 text-xs font-medium text-brand bg-brand/5 border border-edge-strong rounded-md hover:bg-brand/10 transition-colors duration-100 text-center"
                 >
                   View Student Profile

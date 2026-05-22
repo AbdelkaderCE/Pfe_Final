@@ -95,15 +95,13 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
       return;
     }
 
-    // Temporary brute-force lockout (bypassed in development)
-    const isDev = process.env.NODE_ENV !== "production";
-    if (!isDev && user.lockUntil && user.lockUntil > new Date()) {
-      const minutesLeft = Math.ceil((user.lockUntil.getTime() - Date.now()) / 60000);
+    // Temporary brute-force lockout
+    if (user.lockUntil && user.lockUntil > new Date()) {
       res.status(423).json({
         success: false,
         error: {
           code: "ACCOUNT_LOCKED",
-          message: `Account temporarily locked due to failed login attempts. Try again in ${minutesLeft} minute(s).`,
+          message: "please try again later",
         },
       });
       return;

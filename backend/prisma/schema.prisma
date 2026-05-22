@@ -340,6 +340,8 @@ model Etudiant {
   dossiersDisciplinaires DossierDisciplinaire[]
   reclamations           Reclamation[]
   justifications         Justification[]
+  studentReclamationDocuments  StudentReclamationDocument[]
+  studentJustificationDocuments StudentJustificationDocument[]
 
   @@map("etudiants")
 }
@@ -372,6 +374,7 @@ model Module {
   specialite    Specialite     @relation(fields: [specialiteId], references: [id])
   promo         Promo?         @relation(fields: [promoId], references: [id])
   enseignements Enseignement[]
+  teacherAnnouncementModules TeacherAnnouncementModule[]
 
   @@index([promoId])
   @@map("modules")
@@ -939,6 +942,7 @@ model Reclamation {
   etudiant      Etudiant        @relation(fields: [etudiantId], references: [id])
   type          ReclamationType @relation(fields: [typeId], references: [id])
   traiteParUser User?           @relation("ReclamationTraitePar", fields: [traitePar], references: [id])
+  studentDocuments StudentReclamationDocument[]
 
   @@map("reclamations")
 }
@@ -983,6 +987,7 @@ model Justification {
   etudiant      Etudiant    @relation(fields: [etudiantId], references: [id])
   type          TypeAbsence @relation(fields: [typeId], references: [id])
   traiteParUser User?       @relation("JustificationTraitePar", fields: [traitePar], references: [id])
+  studentDocuments StudentJustificationDocument[]
 
   @@map("justifications")
 }
@@ -1097,6 +1102,7 @@ model Annonce {
   type      AnnonceType?      @relation(fields: [typeId], references: [id])
   documents AnnonceDocument[]
   media     AnnonceMedia[]
+  teacherAnnouncementModules TeacherAnnouncementModule[]
 
   @@map("annonces")
 }
@@ -1159,4 +1165,68 @@ model AnnonceMedia {
   annonce Annonce @relation(fields: [annonceId], references: [id])
 
   @@map("annonce_media")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Manually Created Tables (Added to schema to prevent db push deletion)
+// ═══════════════════════════════════════════════════════════════
+
+model StudentReclamationDocument {
+  id            Int      @id @default(autoincrement())
+  reclamationId Int      @map("reclamation_id")
+  etudiantId    Int      @map("etudiant_id")
+  filePath      String   @map("file_path")
+  fileName      String   @map("file_name") @db.VarChar(255)
+  mimeType      String?  @map("mime_type") @db.VarChar(120)
+  fileSize      BigInt?  @map("file_size")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  reclamation Reclamation @relation(fields: [reclamationId], references: [id], onDelete: Cascade)
+  etudiant    Etudiant    @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+
+  @@map("student_reclamation_documents")
+}
+
+model StudentJustificationDocument {
+  id              Int      @id @default(autoincrement())
+  justificationId Int      @map("justification_id")
+  etudiantId      Int      @map("etudiant_id")
+  filePath        String   @map("file_path")
+  fileName        String   @map("file_name") @db.VarChar(255)
+  mimeType        String?  @map("mime_type") @db.VarChar(120)
+  fileSize        BigInt?  @map("file_size")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  justification Justification @relation(fields: [justificationId], references: [id], onDelete: Cascade)
+  etudiant      Etudiant      @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+
+  @@map("student_justification_documents")
+}
+
+model RequestWorkflowHistory {
+  id              Int      @id @default(autoincrement())
+  requestCategory String   @map("request_category") @db.VarChar(50)
+  requestId       Int      @map("request_id")
+  stage           String   @db.VarChar(50)
+  action          String   @db.VarChar(50)
+  actorUserId     Int?     @map("actor_user_id")
+  actorRoles      Json?    @map("actor_roles")
+  note            String?
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("request_workflow_history")
+}
+
+model TeacherAnnouncementModule {
+  annonceId     Int       @id @map("annonce_id")
+  moduleId      Int?      @map("module_id")
+  scheduledFor  DateTime? @map("scheduled_for")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @default(now()) @map("updated_at")
+
+  annonce Annonce @relation(fields: [annonceId], references: [id], onDelete: Cascade)
+  module  Module? @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+
+  @@map("teacher_announcement_modules")
 }

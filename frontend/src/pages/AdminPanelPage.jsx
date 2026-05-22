@@ -24,8 +24,8 @@ import useFirstTimeTour from '../hooks/useFirstTimeTour';
 
 const MAIN_SECTIONS = [
   { key: 'users',               title: 'User Management',       to: '/dashboard/admin/users',                  icon: Users,        hint: 'Roles, accounts, status' },
-  { key: 'students',            title: 'Student Management',    to: '/dashboard/admin/users',                  icon: GraduationCap, hint: 'Students, promos, history' },
-  { key: 'teachers',            title: 'Teacher Management',    to: '/dashboard/admin/users',                  icon: UserCog,       hint: 'Faculty assignments' },
+  { key: 'students',            title: 'Student Import',        to: '/dashboard/admin/students/import',       icon: GraduationCap, hint: 'CSV roster and credentials' },
+  { key: 'teachers',            title: 'Teacher Import',        to: '/dashboard/admin/teachers/import',       icon: UserCog,       hint: 'CSV roster and credentials' },
   { key: 'academic-assignment', title: 'Academic Assignment',   to: '/dashboard/admin/academic/assignments',   icon: Settings2,     hint: 'Modules ↔ teachers ↔ promos' },
   { key: 'pfe-workspace',       title: 'PFE Workspace',         to: '/dashboard/pfe-workspace',               icon: BookOpen,      hint: 'Unified PFE hub' },
   { key: 'affectation',         title: 'Affectation Campaigns', to: '/dashboard/admin/affectation',            icon: Shuffle,       hint: 'Specialty assignment cycles' },

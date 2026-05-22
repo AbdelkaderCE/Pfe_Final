@@ -136,6 +136,24 @@ export default function Topbar({ role = 'student', user, onLogout, onHamburger, 
     }
   };
 
+  const handleMarkAllAsRead = async () => {
+    try {
+      await alertsAPI.markAllAsRead();
+      setAlerts((current) => current.map((alert) => ({ ...alert, isRead: true })));
+    } catch {
+      // Best-effort UI update
+    }
+  };
+
+  const handleClearAllAlerts = async () => {
+    try {
+      await alertsAPI.clearAll();
+      setAlerts([]);
+    } catch {
+      // Best-effort UI update
+    }
+  };
+
   const title = t(PAGE_TITLE_KEYS[activeKey] || 'nav.dashboard');
 
   return (
@@ -212,9 +230,29 @@ export default function Topbar({ role = 'student', user, onLogout, onHamburger, 
 
           {alertsOpen && (
             <div className="absolute end-0 mt-1 w-96 max-w-[calc(100vw-2rem)] bg-surface rounded-lg shadow-card border border-edge py-1 z-50">
-              <div className="px-4 py-3 border-b border-edge-subtle flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-ink">Alerts</p>
-                <p className="text-xs text-ink-tertiary">Unread: {unreadCount}</p>
+              <div className="px-4 py-3 border-b border-edge-subtle flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-ink">Alerts</p>
+                  <p className="text-xs text-ink-tertiary">Unread: {unreadCount}</p>
+                </div>
+                {alerts.length > 0 && (
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={handleMarkAllAsRead}
+                      className="text-xs font-medium text-brand hover:text-brand-hover"
+                    >
+                      Read all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearAllAlerts}
+                      className="text-xs font-medium text-danger hover:text-danger/80"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
               </div>
 
               {alertsLoading ? (

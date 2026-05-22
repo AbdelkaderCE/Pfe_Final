@@ -1532,7 +1532,7 @@ export default function News() {
           style={{
             position: 'sticky',
             top: isMobile ? 'var(--news-mobile-sticky-top, 0px)' : 'var(--news-desktop-sticky-top, 0px)',
-            zIndex: 90,
+            zIndex: 40,
             margin: 0,
             background: 'color-mix(in srgb, var(--color-canvas) 98%, transparent)',
             borderTop: 'none',
@@ -1727,7 +1727,7 @@ export default function News() {
 
       {showModal ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               setShowModal(false);

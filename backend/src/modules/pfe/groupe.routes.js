@@ -27,5 +27,6 @@ router.get('/:id', (req, res) => groupeController.getById(req, res));
 router.post('/:groupId/membres', (req, res) => groupeController.addMember(req, res));
 router.delete('/:id', (req, res) => groupeController.delete(req, res));
 router.post('/:groupId/affecter-sujet', (req, res) => groupeController.affecterSujet(req, res));
-
+router.post('/:groupId/assign-sujet', requireAuth, (req, res) => groupeController.assignSujetDirect(req, res));
+router.post('/:groupId/unassign-sujet', requireAuth, (req, res) => groupeController.unassignSujet(req, res));
 module.exports = router;

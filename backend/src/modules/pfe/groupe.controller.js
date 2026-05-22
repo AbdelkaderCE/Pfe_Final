@@ -71,7 +71,7 @@ class GroupeController {
    * POST /api/v1/pfe/groupes/manual
    *
    * Admin-only: manually assemble a group with its members (and exactly one
-   * chef_groupe). No subject is assigned at this step.
+    * chef_groupe). sujetFinalId is optional and assigns the subject if provided.
    */
   async createManual(req, res) {
     try {
@@ -226,15 +226,22 @@ class GroupeController {
       // this, the endpoint leaked every university group to every teacher.
       if (!isAdmin(req.user)) {
         const userId = Number(req.user?.id);
-        const enseignant = userId
-          ? await prisma.enseignant.findUnique({
-              where: { userId },
-              select: { id: true },
-            })
-          : null;
+        const [enseignant, etudiant] = userId ? await Promise.all([
+          prisma.enseignant.findUnique({ where: { userId }, select: { id: true } }),
+          prisma.etudiant.findUnique({ where: { userId }, select: { id: true } })
+        ]) : [null, null];
+
+        if (etudiant) {
+          const studentId = etudiant.id;
+          const groupes = await prisma.groupPfe.findMany({
+            where: { groupMembers: { some: { etudiantId: studentId } } },
+            include,
+          });
+          return res.json({ success: true, data: groupes });
+        }
 
         if (!enseignant) {
-          // Non-admin, non-teacher → no groups exposed via this endpoint.
+          // Non-admin, non-teacher, non-student → no groups exposed via this endpoint.
           return res.json({ success: true, data: [] });
         }
 
@@ -511,6 +518,155 @@ class GroupeController {
       return res.json({ success: true, data: updated });
     } catch (err) {
       return sendError(res, err, 'Erreur mise à jour groupe:');
+    }
+  }
+
+  /**
+   * Direct assignment for group leaders and admins.
+   * Enforces promo matching, availability checks, and status updates.
+   */
+  async assignSujetDirect(req, res) {
+    try {
+      const groupId = Number.parseInt(req.params.groupId, 10);
+      const { sujetId } = req.body || {};
+
+      if (!Number.isInteger(groupId) || groupId <= 0) {
+        return res.status(400).json({ success: false, error: { code: 'INVALID_GROUP_ID', message: 'groupId must be a positive integer' } });
+      }
+      if (!Number.isInteger(Number(sujetId)) || Number(sujetId) <= 0) {
+        return res.status(400).json({ success: false, error: { code: 'INVALID_SUJET_ID', message: 'sujetId must be a positive integer' } });
+      }
+
+      await assertGroupNotFinalized(groupId);
+
+      const result = await prisma.$transaction(async (tx) => {
+        const isAdminUser = isAdmin(req.user);
+
+        const group = await tx.groupPfe.findUnique({
+          where: { id: groupId },
+          include: { groupMembers: { include: { etudiant: true } }, sujetFinal: true }
+        });
+
+        if (!group) throw new DomainError(404, 'GROUP_NOT_FOUND', 'Group not found');
+
+        // Student Access Control
+        if (!isAdminUser) {
+          const studentUserId = Number(req.user.id);
+          const student = await tx.etudiant.findUnique({ where: { userId: studentUserId } });
+          if (!student) throw new DomainError(403, 'FORBIDDEN', 'Only students or admins can perform this action.');
+
+          const isLeader = group.groupMembers.some(m => m.etudiantId === student.id && m.role === 'chef_groupe');
+          if (!isLeader) throw new DomainError(403, 'NOT_GROUP_LEADER', 'Only the group leader can select a subject.');
+        }
+
+        const sujet = await tx.pfeSujet.findUnique({
+          where: { id: Number(sujetId) },
+          include: { groupsPfe: { select: { id: true } } }
+        });
+
+        if (!sujet) throw new DomainError(404, 'SUBJECT_NOT_FOUND', 'Subject not found');
+
+        // Promo Matching Validation
+        const memberPromos = new Set(group.groupMembers.map(m => m.etudiant?.promoId).filter(Boolean));
+        if (memberPromos.size > 0 && !memberPromos.has(sujet.promoId)) {
+          throw new DomainError(400, 'PROMO_MISMATCH', 'Subject does not belong to your promo.');
+        }
+
+        // Availability Validation
+        if (['affecte', 'termine', 'refuse'].includes(sujet.status) && sujet.groupsPfe.length >= sujet.maxGrps) {
+          throw new DomainError(400, 'SUBJECT_FULL', 'This subject is no longer available.');
+        }
+        if (sujet.groupsPfe.length >= sujet.maxGrps) {
+          throw new DomainError(400, 'SUBJECT_FULL', 'This subject has reached its maximum capacity.');
+        }
+        
+        // Ensure no duplicate assignments
+        if (group.sujetFinalId === sujet.id) {
+           throw new DomainError(400, 'ALREADY_ASSIGNED', 'Your group is already assigned to this subject.');
+        }
+
+        // If replacing an old subject, adjust its status
+        if (group.sujetFinalId) {
+          const oldSujet = await tx.pfeSujet.findUnique({
+            where: { id: group.sujetFinalId },
+            include: { groupsPfe: { select: { id: true } } }
+          });
+          if (oldSujet && oldSujet.status === 'affecte' && oldSujet.groupsPfe.length <= oldSujet.maxGrps) {
+            await tx.pfeSujet.update({
+              where: { id: group.sujetFinalId },
+              data: { status: 'valide' }
+            });
+          }
+        }
+
+        // Assign the new subject
+        const updatedGroup = await tx.groupPfe.update({
+          where: { id: groupId },
+          data: { sujetFinalId: sujet.id, dateAffectation: new Date() }
+        });
+
+        // Update new subject status if max capacity reached
+        if (sujet.groupsPfe.length + 1 >= sujet.maxGrps) {
+          await tx.pfeSujet.update({
+            where: { id: sujet.id },
+            data: { status: 'affecte' }
+          });
+        }
+
+        return updatedGroup;
+      });
+
+      return res.json({ success: true, message: 'Subject assigned successfully', data: result });
+    } catch (err) {
+      return sendError(res, err, 'Error assigning subject:');
+    }
+  }
+
+  /**
+   * Admin-only: unassign subject from group.
+   */
+  async unassignSujet(req, res) {
+    try {
+      if (!isAdmin(req.user)) {
+         return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only admins can unassign subjects.' } });
+      }
+      const groupId = Number.parseInt(req.params.groupId, 10);
+      if (!Number.isInteger(groupId) || groupId <= 0) {
+        return res.status(400).json({ success: false, error: { code: 'INVALID_GROUP_ID', message: 'groupId must be a positive integer' } });
+      }
+
+      await assertGroupNotFinalized(groupId);
+
+      const result = await prisma.$transaction(async (tx) => {
+        const group = await tx.groupPfe.findUnique({ where: { id: groupId } });
+        if (!group) throw new DomainError(404, 'GROUP_NOT_FOUND', 'Group not found');
+        if (!group.sujetFinalId) return group;
+
+        const oldSujetId = group.sujetFinalId;
+
+        const updatedGroup = await tx.groupPfe.update({
+          where: { id: groupId },
+          data: { sujetFinalId: null, dateAffectation: null }
+        });
+
+        // Revert subject status to valide if it was affecte and now has capacity
+        const oldSujet = await tx.pfeSujet.findUnique({
+          where: { id: oldSujetId },
+          include: { groupsPfe: { select: { id: true } } }
+        });
+        
+        if (oldSujet && oldSujet.status === 'affecte' && oldSujet.groupsPfe.length < oldSujet.maxGrps) {
+           await tx.pfeSujet.update({
+             where: { id: oldSujetId },
+             data: { status: 'valide' }
+           });
+        }
+        return updatedGroup;
+      });
+
+      return res.json({ success: true, message: 'Subject unassigned successfully', data: result });
+    } catch (err) {
+      return sendError(res, err, 'Error unassigning subject:');
     }
   }
 }

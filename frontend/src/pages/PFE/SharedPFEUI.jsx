@@ -561,3 +561,143 @@ export function SectionHeader({ eyebrow, title, subtitle, action }) {
     </div>
   );
 }
+
+/* ── AssignSubjectModal — for assigning subjects directly ──────── */
+export function AssignSubjectModal({ group, subjects, onClose, onAssigned }) {
+  const [selectedSubjectId, setSelectedSubjectId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  if (!group) return null;
+
+  const handleSave = async () => {
+    if (!selectedSubjectId) return setError('Please select a subject.');
+    setError(null);
+    setSaving(true);
+    try {
+      await request(`/api/v1/pfe/groupes/${group.id}/assign-sujet`, {
+        method: 'POST',
+        body: JSON.stringify({ sujetId: Number(selectedSubjectId) }),
+      });
+      if (onAssigned) await onAssigned();
+      onClose();
+    } catch (err) {
+      setError(err?.message || 'Failed to assign subject.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUnassign = async () => {
+    setError(null);
+    setSaving(true);
+    try {
+      await request(`/api/v1/pfe/groupes/${group.id}/unassign-sujet`, {
+        method: 'POST',
+      });
+      if (onAssigned) await onAssigned();
+      onClose();
+    } catch (err) {
+      setError(err?.message || 'Failed to unassign subject.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const groupPromoId = group?.sujetFinal?.promoId || group?.groupMembers?.[0]?.etudiant?.promoId;
+  const filteredSubjects = (subjects || []).filter((s) => {
+    if (s.status !== 'valide') return false;
+    if (groupPromoId && s.promoId !== groupPromoId) return false;
+    const currentCount = s.groupsPfe?.length || 0;
+    if (currentCount >= (s.maxGrps || 1)) return false;
+    return true;
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-edge"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-edge flex items-center justify-between bg-surface-200/50">
+          <div>
+            <h3 className="text-lg font-bold text-ink">Assign Subject</h3>
+            <p className="text-xs text-ink-tertiary">Group #{group.id}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="p-2 rounded-xl hover:bg-surface-300 transition-colors disabled:opacity-50"
+          >
+            <X className="w-5 h-5 text-ink-muted" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {error && (
+            <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+              {error}
+            </div>
+          )}
+          
+          {group.sujetFinalId && (
+             <div className="rounded-2xl border border-brand/20 bg-brand/5 p-4 mb-4">
+               <h4 className="text-xs font-semibold uppercase text-brand mb-2">Current Subject</h4>
+               <p className="text-sm font-bold text-ink mb-1">{group.sujetFinal?.titre_ar || group.sujetFinal?.titre_en}</p>
+               <button onClick={handleUnassign} disabled={saving} className="mt-2 text-xs font-semibold text-danger hover:underline">
+                 Unassign Subject
+               </button>
+             </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold text-ink-secondary uppercase mb-2">
+              Available Subjects ({filteredSubjects.length})
+            </label>
+            {filteredSubjects.length === 0 ? (
+              <div className="p-4 rounded-xl border border-edge bg-surface-200 text-center text-sm text-ink-secondary">
+                No available subjects found for this promo.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredSubjects.map((s) => (
+                  <label key={s.id} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${selectedSubjectId === String(s.id) ? 'border-brand bg-brand/5' : 'border-edge bg-surface hover:bg-surface-200'}`}>
+                    <input type="radio" name="subjectSelect" value={s.id} checked={selectedSubjectId === String(s.id)} onChange={(e) => setSelectedSubjectId(e.target.value)} className="mt-1 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-ink leading-tight mb-1">{s.titre_ar || s.titre_en}</p>
+                      <p className="text-xs text-ink-tertiary">Teacher: {getUserDisplayName(s.enseignant?.user)}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-edge-subtle flex justify-end gap-2 bg-surface-200/30">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2 text-sm font-medium rounded-xl border border-edge bg-surface text-ink hover:bg-surface-200 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !selectedSubjectId}
+            className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl bg-brand text-surface hover:bg-brand-hover disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saving ? 'Assigning...' : 'Assign'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

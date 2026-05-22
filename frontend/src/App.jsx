@@ -47,6 +47,8 @@ import AdminAffectationPage from './pages/admin/AdminAffectationPage';
 import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
 import AdminStudentNotesPage from './pages/admin/AdminStudentNotesPage';
 import AdminUserStatsPage from './pages/admin/AdminUserStatsPage';
+import AdminStudentImportPage from './pages/admin/AdminStudentImportPage';
+import AdminTeacherImportPage from './pages/admin/AdminTeacherImportPage';
 import StudentHistoryPage from './pages/StudentHistoryPage';
 import TeacherHistoryPage from './pages/TeacherHistoryPage';
 import AdminHistoryPage from './pages/AdminHistoryPage';
@@ -295,6 +297,30 @@ function App() {
                     accessMode="any"
                   >
                     <DashboardLayout><AdminUsersPage /></DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/admin/students/import"
+                element={
+                  <ProtectedRoute
+                    allowedRoles={['admin']}
+                    requiredPermissions={['users:manage']}
+                    accessMode="any"
+                  >
+                    <DashboardLayout><AdminStudentImportPage /></DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/admin/teachers/import"
+                element={
+                  <ProtectedRoute
+                    allowedRoles={['admin']}
+                    requiredPermissions={['users:manage']}
+                    accessMode="any"
+                  >
+                    <DashboardLayout><AdminTeacherImportPage /></DashboardLayout>
                   </ProtectedRoute>
                 }
               />

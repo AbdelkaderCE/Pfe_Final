@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import XLSX from "xlsx";
 import PDFDocument from "pdfkit";
 import {
   registerArabicFonts,
@@ -36,6 +35,7 @@ import {
   listUsersForAdminPdfExport,
   type AdminUserPdfExportScope,
 } from "../../modules/auth/auth.service";
+import { importUsersFromCsv, UserImportError } from "./user-import.service";
 import {
   ACCESS_TOKEN_COOKIE_NAME,
   REFRESH_TOKEN_COOKIE_NAME,
@@ -48,64 +48,6 @@ import {
   toPublicUploadPath,
 } from "../../shared/local-upload.service";
 import { writeAuditLogSafe } from "../../shared/audit-log.service";
-
-type ParsedExcelImportRow = {
-  nom: string;
-  prenom: string;
-  email: string;
-  telephone?: string;
-  roleNames: string[];
-  promoId?: number;
-  specialiteId?: number;
-  moduleIds?: number[];
-  anneeUniversitaire?: string;
-};
-
-const pickCellValue = (row: Record<string, unknown>, aliases: string[]): string => {
-  for (const alias of aliases) {
-    if (Object.prototype.hasOwnProperty.call(row, alias)) {
-      const value = row[alias];
-      if (value === null || value === undefined) {
-        return "";
-      }
-      return String(value).trim();
-    }
-  }
-  return "";
-};
-
-const parseOptionalPositiveInteger = (rawValue: string): number | undefined => {
-  if (!rawValue) return undefined;
-  const value = Number(rawValue);
-  if (!Number.isInteger(value) || value <= 0) {
-    return undefined;
-  }
-  return value;
-};
-
-const parseOptionalPositiveIntegerList = (rawValue: string): number[] => {
-  if (!rawValue) return [];
-  return Array.from(
-    new Set(
-      rawValue
-        .split(/[;,|]/)
-        .map((part) => Number(part.trim()))
-        .filter((value) => Number.isInteger(value) && value > 0)
-    )
-  );
-};
-
-const parseRoleNames = (rawValue: string): string[] => {
-  if (!rawValue) return [];
-  return Array.from(
-    new Set(
-      rawValue
-        .split(/[;,|]/)
-        .map((part) => part.trim())
-        .filter(Boolean)
-    )
-  );
-};
 
 const readHeaderValue = (value: string | string[] | undefined): string => {
   if (Array.isArray(value)) {
@@ -129,28 +71,22 @@ const getRefreshTokenFromRequest = (req: Request): string | undefined => {
   return undefined;
 };
 
-const parseExcelUserRow = (row: Record<string, unknown>): ParsedExcelImportRow => {
-  const nom = pickCellValue(row, ["nom", "lastName", "last_name"]);
-  const prenom = pickCellValue(row, ["prenom", "firstName", "first_name"]);
-  const email = pickCellValue(row, ["email", "mail"]);
-  const telephone = pickCellValue(row, ["telephone", "phone", "tel"]);
-  const roleNames = parseRoleNames(pickCellValue(row, ["roles", "role", "roleNames", "role_names"]));
-  const promoId = parseOptionalPositiveInteger(pickCellValue(row, ["promoId", "promo_id"]));
-  const specialiteId = parseOptionalPositiveInteger(pickCellValue(row, ["specialiteId", "specialite_id"]));
-  const moduleIds = parseOptionalPositiveIntegerList(pickCellValue(row, ["moduleIds", "module_ids"]));
-  const anneeUniversitaire = pickCellValue(row, ["anneeUniversitaire", "annee_universitaire"]);
+const readCsvTextFromRequest = (req: AuthRequest): string | null => {
+  const filePayload = (req as { file?: { buffer?: Buffer } }).file;
+  const csvFromFile = filePayload?.buffer ? filePayload.buffer.toString("utf8") : null;
+  const csvFromBody = typeof req.body?.csv === "string" ? req.body.csv : null;
+  return csvFromFile || csvFromBody;
+};
 
-  return {
-    nom,
-    prenom,
-    email,
-    telephone: telephone || undefined,
-    roleNames,
-    promoId,
-    specialiteId,
-    moduleIds: moduleIds.length > 0 ? moduleIds : undefined,
-    anneeUniversitaire: anneeUniversitaire || undefined,
-  };
+const parseBooleanFlag = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(normalized)) return true;
+    if (["false", "0", "no", "n"].includes(normalized)) return false;
+  }
+  return true;
 };
 
 const IMAGE_MIME_TYPE_REGEX = /^image\/(jpeg|png|gif|webp|bmp|svg\+xml)$/i;
@@ -669,7 +605,7 @@ export const createUserByAdminHandler = async (req: AuthRequest, res: Response) 
   }
 };
 
-export const importUsersByAdminExcelHandler = async (req: AuthRequest, res: Response) => {
+export const importStudentsByAdminCsvHandler = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -681,123 +617,93 @@ export const importUsersByAdminExcelHandler = async (req: AuthRequest, res: Resp
       });
     }
 
-    const uploadedFile = req.file;
-    if (!uploadedFile?.buffer) {
+    const csvText = readCsvTextFromRequest(req);
+    if (!csvText) {
       return res.status(400).json({
         success: false,
         error: {
-          code: "MISSING_FILE",
-          message: "Excel file is required",
+          code: "MISSING_CSV",
+          message: "CSV file is required",
         },
       });
     }
 
-    const workbook = XLSX.read(uploadedFile.buffer, { type: "buffer" });
-    const firstSheetName = workbook.SheetNames[0];
-
-    if (!firstSheetName) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: "INVALID_FILE",
-          message: "Excel file does not contain any sheet",
-        },
-      });
-    }
-
-    const worksheet = workbook.Sheets[firstSheetName];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
-      defval: "",
-      raw: false,
+    const result = await importUsersFromCsv({
+      csvText,
+      type: "student",
+      forcePasswordChange: parseBooleanFlag(req.body?.forcePasswordChange),
     });
 
-    if (!rows.length) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: "EMPTY_FILE",
-          message: "Excel file is empty",
-        },
-      });
-    }
-
-    const created: Array<{
-      rowNumber: number;
-      userId: number;
-      nom: string;
-      prenom: string;
-      email: string;
-      telephone: string;
-      roleNames: string[];
-      tempPassword: string;
-      generatedAt: string;
-    }> = [];
-    const failures: Array<{ rowNumber: number; email: string; reason: string }> = [];
-
-    for (let index = 0; index < rows.length; index += 1) {
-      const rowNumber = index + 2;
-      const parsedRow = parseExcelUserRow(rows[index]);
-
-      if (!parsedRow.nom || !parsedRow.prenom || !parsedRow.email) {
-        failures.push({
-          rowNumber,
-          email: parsedRow.email || "",
-          reason: "nom, prenom, and email are required",
-        });
-        continue;
-      }
-
-      if (!parsedRow.roleNames.length) {
-        failures.push({
-          rowNumber,
-          email: parsedRow.email,
-          reason: "At least one role is required",
-        });
-        continue;
-      }
-
-      try {
-        const result = await createUserByAdmin(parsedRow);
-        created.push({
-          rowNumber,
-          userId: result.user.id,
-          nom: result.user.nom,
-          prenom: result.user.prenom,
-          email: result.user.email,
-          telephone: parsedRow.telephone || "",
-          roleNames: result.user.roles,
-          tempPassword: result.tempPassword,
-          generatedAt: new Date().toISOString(),
-        });
-      } catch (error: any) {
-        failures.push({
-          rowNumber,
-          email: parsedRow.email,
-          reason: error?.message || "Failed to create user",
-        });
-      }
-    }
-
-    return res.status(created.length > 0 ? 201 : 200).json({
+    return res.status(result.totals.created > 0 ? 201 : 200).json({
       success: true,
-      data: {
-        totalRows: rows.length,
-        createdCount: created.length,
-        failedCount: failures.length,
-        created,
-        failures,
-      },
-      message:
-        created.length > 0
-          ? "Excel import completed"
-          : "Excel import processed, but no accounts were created",
+      data: result,
+      message: "Student import completed",
     });
   } catch (error: any) {
-    return res.status(400).json({
+    if (error instanceof UserImportError) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: { code: error.code, message: error.message },
+      });
+    }
+
+    return res.status(500).json({
       success: false,
       error: {
-        code: "IMPORT_USERS_FAILED",
-        message: error.message,
+        code: "IMPORT_STUDENTS_FAILED",
+        message: error?.message || "Failed to import students",
+      },
+    });
+  }
+};
+
+export const importTeachersByAdminCsvHandler = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Not authenticated",
+        },
+      });
+    }
+
+    const csvText = readCsvTextFromRequest(req);
+    if (!csvText) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "MISSING_CSV",
+          message: "CSV file is required",
+        },
+      });
+    }
+
+    const result = await importUsersFromCsv({
+      csvText,
+      type: "teacher",
+      forcePasswordChange: parseBooleanFlag(req.body?.forcePasswordChange),
+    });
+
+    return res.status(result.totals.created > 0 ? 201 : 200).json({
+      success: true,
+      data: result,
+      message: "Teacher import completed",
+    });
+  } catch (error: any) {
+    if (error instanceof UserImportError) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: { code: error.code, message: error.message },
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: "IMPORT_TEACHERS_FAILED",
+        message: error?.message || "Failed to import teachers",
       },
     });
   }

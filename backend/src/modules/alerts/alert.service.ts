@@ -143,3 +143,30 @@ export const markAsRead = async (
     data: { isRead: true },
   });
 };
+
+export const markAllAsRead = async (
+  userId: number,
+  client: AlertClient = prisma
+) => {
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new Error("A valid userId is required");
+  }
+
+  return client.alert.updateMany({
+    where: { userId, isRead: false },
+    data: { isRead: true },
+  });
+};
+
+export const clearAllUserAlerts = async (
+  userId: number,
+  client: AlertClient = prisma
+) => {
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new Error("A valid userId is required");
+  }
+
+  return client.alert.deleteMany({
+    where: { userId },
+  });
+};

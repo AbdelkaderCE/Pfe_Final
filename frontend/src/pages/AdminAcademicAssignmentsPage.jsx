@@ -6,7 +6,6 @@ import {
   GraduationCap,
   Search,
   Trash2,
-  Upload,
   UserCheck,
   Users,
 } from 'lucide-react';
@@ -78,9 +77,6 @@ export default function AdminAcademicAssignmentsPage() {
   const [selectedStudents, setSelectedStudents] = useState({});
   const [bulkPromoId, setBulkPromoId] = useState('');
   const [busy, setBusy] = useState(false);
-  const [csvText, setCsvText] = useState('');
-  const [csvImportPromoId, setCsvImportPromoId] = useState('');
-  const [importReport, setImportReport] = useState(null);
 
   // Teacher tab state
   const [teacherSearch, setTeacherSearch] = useState('');
@@ -206,47 +202,6 @@ export default function AdminAcademicAssignmentsPage() {
       setError(err.message || 'Bulk assignment failed.');
     } finally {
       setBusy(false);
-    }
-  };
-
-  const importCsv = async () => {
-    if (!csvText.trim()) {
-      setError('Paste CSV content first (header + rows).');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    setMessage('');
-    setImportReport(null);
-    try {
-      const result = await affectationAPI.importStudentsCsv({
-        csv: csvText,
-        promoId: csvImportPromoId ? Number(csvImportPromoId) : null,
-      });
-      const payload = result?.data || {};
-      setImportReport(payload);
-      setMessage(
-        `Import done — created ${payload.totals?.created ?? 0}, updated ${payload.totals?.updated ?? 0}, errors ${payload.totals?.errors ?? 0}.`
-      );
-      setCsvText('');
-      await loadCore();
-    } catch (err) {
-      setError(err.message || 'CSV import failed.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onCsvFileChange = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      setCsvText(text);
-    } catch (err) {
-      setError('Could not read the selected file.');
-    } finally {
-      event.target.value = '';
     }
   };
 
@@ -381,89 +336,22 @@ export default function AdminAcademicAssignmentsPage() {
       {/* ── Students tab ─────────────────────────────────────── */}
       {activeTab === 'students' ? (
         <>
-          {/* CSV import card */}
           <section className="rounded-2xl border border-edge bg-surface p-6 shadow-sm">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand">
-                <Upload className="h-5 w-5" />
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-ink">CSV Import</h2>
-                <p className="text-sm text-ink-secondary">
-                  Upload a CSV with columns <code className="rounded bg-canvas px-1">firstName,lastName,email,matricule</code>.
-                  Existing accounts are matched by email and updated; new accounts get a temporary password.
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-tertiary">Roster Import</p>
+                <h2 className="mt-2 text-lg font-semibold text-ink">Student import moved to a dedicated workflow</h2>
+                <p className="mt-1 text-sm text-ink-secondary">
+                  Use the new CSV import flow with template download, validation preview, and status badges.
                 </p>
               </div>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div>
-                <label className="block text-xs font-medium uppercase tracking-wide text-ink-tertiary">
-                  CSV file
-                </label>
-                <input
-                  type="file"
-                  accept=".csv,text/csv,text/plain"
-                  onChange={onCsvFileChange}
-                  className="mt-1 block w-full cursor-pointer rounded-md border border-edge bg-canvas px-3 py-2 text-sm text-ink-secondary file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-1 file:text-sm file:font-medium file:text-surface hover:file:bg-brand-hover"
-                />
-                <textarea
-                  className={`${inputClass} mt-2 min-h-[8rem] font-mono text-xs`}
-                  placeholder={`firstName,lastName,email,matricule\nMohamed,Saad,m.saad@univ.dz,202301\n...`}
-                  value={csvText}
-                  onChange={(e) => setCsvText(e.target.value)}
-                />
-              </div>
-              <div className="space-y-3">
-                <label className="block text-xs font-medium uppercase tracking-wide text-ink-tertiary">
-                  Auto-assign to promo (optional)
-                </label>
-                <select
-                  className={inputClass}
-                  value={csvImportPromoId}
-                  onChange={(e) => setCsvImportPromoId(e.target.value)}
-                >
-                  <option value="">No promo (just create accounts)</option>
-                  {data.promos.map((promo) => (
-                    <option key={`csv-promo-${promo.id}`} value={promo.id}>
-                      {promoLabel(promo)}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={importCsv}
-                  disabled={busy || !csvText.trim()}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-brand-hover disabled:opacity-60"
-                >
-                  <Upload className="h-4 w-4" />
-                  {busy ? 'Importing…' : 'Import CSV'}
-                </button>
-                {importReport ? (
-                  <div className="rounded-lg border border-edge bg-canvas/40 p-3 text-xs">
-                    <p className="font-semibold text-ink">Import report</p>
-                    <p className="mt-1 text-ink-secondary">
-                      Created {importReport.totals?.created ?? 0} · Updated {importReport.totals?.updated ?? 0} · Errors {importReport.totals?.errors ?? 0}
-                    </p>
-                    {Array.isArray(importReport.rows) && importReport.rows.some((r) => r.tempPassword) ? (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-ink-secondary hover:text-ink">
-                          Temporary passwords for new accounts
-                        </summary>
-                        <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto pr-2">
-                          {importReport.rows
-                            .filter((r) => r.tempPassword)
-                            .map((r, idx) => (
-                              <li key={`pw-${idx}`} className="font-mono text-[11px] text-ink">
-                                {r.email} → <span className="rounded bg-canvas px-1">{r.tempPassword}</span>
-                              </li>
-                            ))}
-                        </ul>
-                      </details>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard/admin/students/import')}
+                className="inline-flex items-center gap-2 rounded-xl border border-edge bg-canvas px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-brand/40 hover:text-brand"
+              >
+                Open Student Import
+              </button>
             </div>
           </section>
 
